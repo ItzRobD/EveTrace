@@ -32,9 +32,10 @@ type Session struct {
 }
 
 // Watcher monitors a directory for Eve log files and emits a Session per file.
-// Sessions() is closed when the context is cancelled.
+// Sessions() and LogEvents() are both closed when the context is cancelled.
 type Watcher struct {
-	sessions chan Session
+	sessions  chan Session
+	logEvents chan core.LogEvent
 }
 
 // New starts a Watcher on dir. offsetFn is called for each discovered file to
@@ -50,7 +51,10 @@ func New(ctx context.Context, dir string, offsetFn OffsetFn) (*Watcher, error) {
 		return nil, err
 	}
 
-	w := &Watcher{sessions: make(chan Session, 16)}
+	w := &Watcher{
+		sessions:  make(chan Session, 16),
+		logEvents: make(chan core.LogEvent, 64),
+	}
 	go w.run(ctx, dir, offsetFn, fw)
 	return w, nil
 }
@@ -58,9 +62,14 @@ func New(ctx context.Context, dir string, offsetFn OffsetFn) (*Watcher, error) {
 // Sessions returns the channel of detected sessions.
 func (w *Watcher) Sessions() <-chan Session { return w.sessions }
 
+// LogEvents returns the channel of structured log events. Consumers must drain
+// this channel; it is closed when the context is cancelled.
+func (w *Watcher) LogEvents() <-chan core.LogEvent { return w.logEvents }
+
 func (w *Watcher) run(ctx context.Context, dir string, offsetFn OffsetFn, fw *fsnotify.Watcher) {
 	defer fw.Close()
 	defer close(w.sessions)
+	defer close(w.logEvents)
 
 	// Initial scan for files already present in the directory.
 	existing, _ := filepath.Glob(filepath.Join(dir, "*.txt"))
@@ -90,13 +99,26 @@ func (w *Watcher) run(ctx context.Context, dir string, offsetFn OffsetFn, fw *fs
 func (w *Watcher) addFile(ctx context.Context, path string, offsetFn OffsetFn) {
 	header, err := parseSessionHeaderWithRetry(ctx, path)
 	if err != nil {
+		w.emit(ctx, core.LogEvent{
+			Level:   core.LevelWarn,
+			Code:    core.CodeHeaderParseFail,
+			File:    path,
+			Message: fmt.Sprintf("could not read session header from %s: %v", path, err),
+			At:      time.Now(),
+		})
 		return
 	}
 
 	if header.Collision {
 		// Two characters share this file; the second character's data is interleaved
 		// in a way the tailer cannot cleanly separate. Skip for now.
-		fmt.Printf("watcher: skipping collision log %s\n", path)
+		w.emit(ctx, core.LogEvent{
+			Level:   core.LevelWarn,
+			Code:    core.CodeCollision,
+			File:    path,
+			Message: fmt.Sprintf("log file %s contains two session headers (characters logged in at the same second); file skipped", path),
+			At:      time.Now(),
+		})
 		return
 	}
 
@@ -120,6 +142,17 @@ func (w *Watcher) addFile(ctx context.Context, path string, offsetFn OffsetFn) {
 		CurrentOffset: t.CurrentOffset,
 	}:
 	case <-ctx.Done():
+	}
+}
+
+// emit sends a LogEvent on the logEvents channel without blocking.
+// If the buffer is full or the context is done, the event is dropped.
+func (w *Watcher) emit(ctx context.Context, ev core.LogEvent) {
+	select {
+	case w.logEvents <- ev:
+	case <-ctx.Done():
+	default:
+		// buffer full — drop rather than block the watcher goroutine
 	}
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"EveTrace/internal/logger"
 	"EveTrace/pkg/core"
 	"EveTrace/pkg/parser"
 	"EveTrace/pkg/watcher"
@@ -18,11 +19,16 @@ func main() {
 	printMode := flag.Bool("print", false, "print parsed events to stdout instead of serving the web UI")
 	fromStart := flag.Bool("from-start", false, "read existing log content from the beginning (useful with -print for replay)")
 	logDir := flag.String("logdir", defaultLogDir(), "path to Eve Online Gamelogs directory")
+	logFile := flag.String("logfile", "evetrace.log", "path to the application log file")
 	flag.Parse()
 
+	if err := logger.Init(*logFile); err != nil {
+		log.Fatalf("logger: %v", err)
+	}
+
 	if *logDir == "" {
-		fmt.Fprintln(os.Stderr, "error: -logdir is required on this platform")
-		fmt.Fprintln(os.Stderr, "example: -logdir ~/.steam/steam/.../drive_c/Users/.../Documents/EVE/logs/Gamelogs")
+		logger.Error("-logdir is required on this platform",
+			"example", "-logdir ~/.steam/steam/.../drive_c/Users/.../Documents/EVE/logs/Gamelogs")
 		os.Exit(1)
 	}
 
@@ -41,8 +47,26 @@ func main() {
 
 	w, err := watcher.New(ctx, *logDir, offsetFn)
 	if err != nil {
-		log.Fatalf("watcher: %v", err)
+		logger.Error("watcher init failed", "err", err)
+		os.Exit(1)
 	}
+
+	// Drain log events: route to the appropriate slog level and (later) forward to the WebSocket hub.
+	go func() {
+		for ev := range w.LogEvents() {
+			args := []any{"code", ev.Code, "file", ev.File}
+			switch ev.Level {
+			case core.LevelDebug:
+				logger.Debug(ev.Message, args...)
+			case core.LevelInfo:
+				logger.Info(ev.Message, args...)
+			case core.LevelError:
+				logger.Error(ev.Message, args...)
+			default:
+				logger.Warn(ev.Message, args...)
+			}
+		}
+	}()
 
 	if *printMode {
 		runPrint(ctx, w)
