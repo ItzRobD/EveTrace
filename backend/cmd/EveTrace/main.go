@@ -8,6 +8,7 @@ import (
 	"EveTrace/pkg/parser"
 	"EveTrace/pkg/watcher"
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"log"
@@ -25,6 +26,7 @@ func main() {
 	logDir := flag.String("logdir", defaultLogDir(), "path to Eve Online Gamelogs directory")
 	logFile := flag.String("logfile", "evetrace.log", "path to the application log file")
 	dbFile := flag.String("db", "evetrace.db", "path to the SQLite database file")
+	flushInterval := flag.Duration("flush-interval", 2*time.Minute, "how often to flush buffered events to the database and checkpoint read offsets")
 	flag.Parse()
 
 	if err := logger.Init(*logFile); err != nil {
@@ -66,8 +68,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	reg := newSessionRegistry()
+
 	buf := repo.NewEventBuffer()
-	go buf.Run(ctx, database.DB(), 2*time.Minute)
+	go buf.Run(ctx, database.DB(), *flushInterval, func(_ int) {
+		reg.checkpoint(database.DB())
+	})
 
 	// Drain log events: route to the appropriate slog level and forward to the WebSocket hub.
 	go func() {
@@ -86,48 +92,36 @@ func main() {
 		}
 	}()
 
-	var finalOffsets map[int32]int64
 	if *printMode {
-		finalOffsets = runPrint(ctx, w, buf)
+		runPrint(ctx, w, buf, reg)
 	} else {
 		fmt.Println("serve mode not yet implemented — use -print to test the parser")
 		<-ctx.Done()
 	}
 
-	// Flush events first, then save offsets only on success so offsets never
-	// advance past the last successfully written event.
+	// Flush events first, then checkpoint offsets only on success so offsets
+	// never advance past the last successfully written event.
 	logger.Info("flushing event buffer", "buffered", buf.Len(), "totalAdded", buf.TotalAdded())
 	if n, err := buf.Flush(database.DB()); err != nil {
 		logger.Error("final buffer flush", "err", err)
 	} else {
 		logger.Info("final buffer flush complete", "written", n)
-		for sid, offset := range finalOffsets {
-			if err := repo.UpdateSessionOffset(database.DB(), sid, offset); err != nil {
-				logger.Error("update session offset", "sid", sid, "err", err)
-			}
-		}
+		reg.checkpoint(database.DB())
 	}
 }
 
-// runPrint processes all sessions, printing events to stdout and buffering them
-// for DB insertion. Returns a map of sessionID → final byte offset for each
-// session, to be saved after the event buffer is flushed successfully.
-func runPrint(ctx context.Context, w *watcher.Watcher, buf *repo.EventBuffer) map[int32]int64 {
-	var (
-		wg        sync.WaitGroup
-		offsetsMu sync.Mutex
-		offsets   = make(map[int32]int64)
-	)
+func runPrint(ctx context.Context, w *watcher.Watcher, buf *repo.EventBuffer, reg *sessionRegistry) {
+	var wg sync.WaitGroup
 
 	for {
 		select {
 		case <-ctx.Done():
 			wg.Wait()
-			return offsets
+			return
 		case sess, ok := <-w.Sessions():
 			if !ok {
 				wg.Wait()
-				return offsets
+				return
 			}
 			fmt.Printf("--- session: %s (started %s) ---\n",
 				sess.Header.Character,
@@ -145,6 +139,10 @@ func runPrint(ctx context.Context, w *watcher.Watcher, buf *repo.EventBuffer) ma
 			}
 			logger.Debug("session registered", "session", sess.ID, "charID", charID, "sessionID", sessionID)
 
+			if sessionID != 0 {
+				reg.register(sessionID, sess.CurrentOffset)
+			}
+
 			p := parser.New(sess.Header.Language)
 			wg.Add(1)
 			go func(s watcher.Session, p *parser.Parser, sid int32) {
@@ -157,12 +155,6 @@ func runPrint(ctx context.Context, w *watcher.Watcher, buf *repo.EventBuffer) ma
 							buf.Add(sid, ev)
 						}
 					}
-				}
-				// Record the final read position; saved to DB after flush succeeds.
-				if sid != 0 {
-					offsetsMu.Lock()
-					offsets[sid] = s.CurrentOffset()
-					offsetsMu.Unlock()
 				}
 			}(sess, p, sessionID)
 		}
@@ -251,4 +243,34 @@ func defaultLogDir() string {
 		return os.Getenv("USERPROFILE") + `\Documents\EVE\logs\Gamelogs`
 	}
 	return ""
+}
+
+// sessionRegistry tracks the CurrentOffset function for each active session so
+// that offsets can be checkpointed to the DB after every successful flush.
+// Safe for concurrent use.
+type sessionRegistry struct {
+	mu       sync.RWMutex
+	sessions map[int32]func() int64
+}
+
+func newSessionRegistry() *sessionRegistry {
+	return &sessionRegistry{sessions: make(map[int32]func() int64)}
+}
+
+func (r *sessionRegistry) register(sid int32, fn func() int64) {
+	r.mu.Lock()
+	r.sessions[sid] = fn
+	r.mu.Unlock()
+}
+
+// checkpoint saves the current read position for every registered session.
+// Should only be called after a successful event flush.
+func (r *sessionRegistry) checkpoint(db *sql.DB) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for sid, fn := range r.sessions {
+		if err := repo.UpdateSessionOffset(db, sid, fn()); err != nil {
+			logger.Error("checkpoint session offset", "sid", sid, "err", err)
+		}
+	}
 }

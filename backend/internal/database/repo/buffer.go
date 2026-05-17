@@ -136,9 +136,11 @@ func (b *EventBuffer) Flush(db *sql.DB) (int, error) {
 }
 
 // Run starts a ticker that flushes the buffer every interval until ctx is
-// cancelled. The caller is responsible for a final flush after Run returns.
-// Flush errors are logged but do not stop the loop.
-func (b *EventBuffer) Run(ctx context.Context, db *sql.DB, interval time.Duration) {
+// cancelled. onFlush is called after each successful periodic flush with the
+// number of rows written; use it to checkpoint session offsets. Pass nil if no
+// post-flush action is needed. The caller is responsible for a final flush
+// after Run returns.
+func (b *EventBuffer) Run(ctx context.Context, db *sql.DB, interval time.Duration, onFlush func(n int)) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -148,8 +150,13 @@ func (b *EventBuffer) Run(ctx context.Context, db *sql.DB, interval time.Duratio
 			n, err := b.Flush(db)
 			if err != nil {
 				log.Printf("event buffer flush: %v", err)
-			} else if n > 0 {
+				continue
+			}
+			if n > 0 {
 				log.Printf("event buffer: flushed %d events", n)
+				if onFlush != nil {
+					onFlush(n)
+				}
 			}
 		case <-ctx.Done():
 			return
