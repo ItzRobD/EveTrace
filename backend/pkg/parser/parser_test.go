@@ -301,6 +301,65 @@ func TestDroppedEventTypes(t *testing.T) {
 	}
 }
 
+func TestCapStarvation(t *testing.T) {
+	p := New(core.LangEnglish)
+	line := `[ 2026.05.06 01:43:00 ] (notify) Large Shield Booster II requires 160.0 units of charge. The capacitor has only 22.5 units.`
+	evs := p.Parse(sid, line)
+	if len(evs) != 1 {
+		t.Fatalf("want 1 event, got %d", len(evs))
+	}
+	if evs[0].Type != core.EventCapStarvation {
+		t.Errorf("type: want cap_starvation, got %s", evs[0].Type)
+	}
+	c := evs[0].CapStarvation
+	if c.Module != "Large Shield Booster II" {
+		t.Errorf("module: %q", c.Module)
+	}
+	if c.Required != 160.0 {
+		t.Errorf("required: want 160.0, got %f", c.Required)
+	}
+	if c.Available != 22.5 {
+		t.Errorf("available: want 22.5, got %f", c.Available)
+	}
+}
+
+func TestReload(t *testing.T) {
+	p := New(core.LangEnglish)
+	line := `[ 2026.05.06 01:43:30 ] (notify) Loading the Heavy Missile into the Missile Launcher Heavy; this will take approximately 10 seconds.`
+	evs := p.Parse(sid, line)
+	if len(evs) != 1 {
+		t.Fatalf("want 1 event, got %d", len(evs))
+	}
+	if evs[0].Type != core.EventReload {
+		t.Errorf("type: want reload, got %s", evs[0].Type)
+	}
+	r := evs[0].Reload
+	if r.Charge != "Heavy Missile" {
+		t.Errorf("charge: %q", r.Charge)
+	}
+	if r.Launcher != "Missile Launcher Heavy" {
+		t.Errorf("launcher: %q", r.Launcher)
+	}
+	if r.Seconds != 10 {
+		t.Errorf("seconds: want 10, got %d", r.Seconds)
+	}
+}
+
+func TestMiningFull(t *testing.T) {
+	p := New(core.LangEnglish)
+	line := `[ 2026.05.16 05:55:00 ] (notify) Your Miner II has completed operations. Ship's cargo hold is full.`
+	evs := p.Parse(sid, line)
+	if len(evs) != 1 {
+		t.Fatalf("want 1 event, got %d", len(evs))
+	}
+	if evs[0].Type != core.EventMiningFull {
+		t.Errorf("type: want mining_full, got %s", evs[0].Type)
+	}
+	if evs[0].MiningFull.Module != "Miner II" {
+		t.Errorf("module: %q", evs[0].MiningFull.Module)
+	}
+}
+
 func TestTimestamp(t *testing.T) {
 	p := New(core.LangEnglish)
 	line := `[ 2026.05.06 01:42:18 ] (combat) <color=0xffcc0000><b>60</b> <color=0x77ffffff><font size=10>from</font> <b><color=0xffffffff>Pith Eliminator</b><font size=10><color=0x77ffffff> - Scourge Cruise Missile - Hits`

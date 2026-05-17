@@ -12,10 +12,13 @@ const (
 type EventType string
 
 const (
-	EventCombat EventType = "combat"
-	EventKill   EventType = "kill"
-	EventMining EventType = "mining"
-	EventNav    EventType = "nav"
+	EventCombat        EventType = "combat"
+	EventKill          EventType = "kill"
+	EventMining        EventType = "mining"
+	EventNav           EventType = "nav"
+	EventCapStarvation EventType = "cap_starvation"
+	EventReload        EventType = "reload"
+	EventMiningFull    EventType = "mining_full"
 )
 
 type SessionHeader struct {
@@ -48,11 +51,14 @@ type Event struct {
 	// Live mirrors the Line.Live flag. False means this event was parsed from
 	// catch-up replay; true means it arrived from the live game client.
 	// Consumers should not broadcast catch-up events over WebSocket.
-	Live   bool
-	Combat *CombatPayload
-	Kill   *KillPayload
-	Mining *MiningPayload
-	Nav    *NavPayload
+	Live          bool
+	Combat        *CombatPayload
+	Kill          *KillPayload
+	Mining        *MiningPayload
+	Nav           *NavPayload
+	CapStarvation *CapStarvationPayload
+	Reload        *ReloadPayload
+	MiningFull    *MiningFullPayload
 }
 
 type CombatPayload struct {
@@ -79,4 +85,28 @@ type MiningPayload struct {
 type NavPayload struct {
 	From string // empty on undock (origin is a station, not a system)
 	To   string
+}
+
+// CapStarvationPayload records a module that failed to activate because the
+// capacitor did not have enough charge. Useful for identifying cap-starved
+// ships and correlating with incoming damage spikes.
+type CapStarvationPayload struct {
+	Module    string  // e.g. "Large Shield Booster II"
+	Required  float64 // capacitor units the module needed
+	Available float64 // capacitor units actually present
+}
+
+// ReloadPayload records a weapon reload event. The reload window is dead time
+// for DPS purposes; pairing this timestamp with the next outgoing combat event
+// gives the actual reload duration.
+type ReloadPayload struct {
+	Charge   string // ammo type being loaded, e.g. "Heavy Missile"
+	Launcher string // module receiving the charge, e.g. "Missile Launcher Heavy"
+	Seconds  int    // stated reload duration
+}
+
+// MiningFullPayload records the moment a miner module stopped because the
+// ship's cargo hold reached capacity. Acts as a natural mining session boundary.
+type MiningFullPayload struct {
+	Module string // e.g. "Miner II", "Strip Miner I"
 }

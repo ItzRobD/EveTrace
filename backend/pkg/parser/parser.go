@@ -39,6 +39,15 @@ var (
 
 	reNavJump   = regexp.MustCompile(`^Jumping from (.+?) to (.+)$`)
 	reNavUndock = regexp.MustCompile(`^Undocking from .+? to (.+?) solar system\.$`)
+
+	// "Large Shield Booster II requires 160.0 units of charge. The capacitor has only 22.0 units."
+	reCapStarvation = regexp.MustCompile(`^(.+?) requires ([\d.]+) units of charge\. The capacitor has only ([\d.]+) units\.$`)
+
+	// "Loading the Heavy Missile into the Missile Launcher Heavy; this will take approximately 10 seconds."
+	reReload = regexp.MustCompile(`^Loading the (.+?) into the (.+?); this will take approximately (\d+) seconds\.$`)
+
+	// "Your Miner II has completed operations. Ship's cargo hold is full."
+	reMiningFull = regexp.MustCompile(`^Your (.+?) has completed operations\. Ship's cargo hold is full\.$`)
 )
 
 // Parser is a stateful per-session parser.
@@ -95,6 +104,8 @@ func (p *Parser) Parse(sessionID, line string) []core.Event {
 		return parseMining(sessionID, ts, msg)
 	case core.LogTypeNone:
 		return parseNav(sessionID, ts, msg)
+	case core.LogTypeNotify:
+		return parseNotify(sessionID, ts, msg)
 	}
 	return nil
 }
@@ -199,6 +210,45 @@ func parseMining(sessionID string, ts time.Time, msg string) []core.Event {
 			SessionID: sessionID,
 			Timestamp: ts,
 			Mining:    &core.MiningPayload{Amount: amount, Residue: true},
+		}}
+	}
+	return nil
+}
+
+func parseNotify(sessionID string, ts time.Time, msg string) []core.Event {
+	if m := reCapStarvation.FindStringSubmatch(msg); m != nil {
+		required, _ := strconv.ParseFloat(m[2], 64)
+		available, _ := strconv.ParseFloat(m[3], 64)
+		return []core.Event{{
+			Type:      core.EventCapStarvation,
+			SessionID: sessionID,
+			Timestamp: ts,
+			CapStarvation: &core.CapStarvationPayload{
+				Module:    m[1],
+				Required:  required,
+				Available: available,
+			},
+		}}
+	}
+	if m := reReload.FindStringSubmatch(msg); m != nil {
+		seconds, _ := strconv.Atoi(m[3])
+		return []core.Event{{
+			Type:      core.EventReload,
+			SessionID: sessionID,
+			Timestamp: ts,
+			Reload: &core.ReloadPayload{
+				Charge:   m[1],
+				Launcher: m[2],
+				Seconds:  seconds,
+			},
+		}}
+	}
+	if m := reMiningFull.FindStringSubmatch(msg); m != nil {
+		return []core.Event{{
+			Type:       core.EventMiningFull,
+			SessionID:  sessionID,
+			Timestamp:  ts,
+			MiningFull: &core.MiningFullPayload{Module: m[1]},
 		}}
 	}
 	return nil

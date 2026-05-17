@@ -163,6 +163,19 @@ func printEvent(ev core.Event) {
 		} else {
 			fmt.Printf("%s [%s] %s  NAV   %s → %s\n", liveTag, char, ts, n.From, n.To)
 		}
+
+	case core.EventCapStarvation:
+		c := ev.CapStarvation
+		fmt.Printf("%s [%s] %s  CAP   %-40s  need %.1f  have %.1f\n",
+			liveTag, char, ts, c.Module, c.Required, c.Available)
+
+	case core.EventReload:
+		r := ev.Reload
+		fmt.Printf("%s [%s] %s  RELOAD  %-30s  → %s (%ds)\n",
+			liveTag, char, ts, r.Launcher, r.Charge, r.Seconds)
+
+	case core.EventMiningFull:
+		fmt.Printf("%s [%s] %s  MINE  FULL  %s\n", liveTag, char, ts, ev.MiningFull.Module)
 	}
 }
 

@@ -18,6 +18,7 @@ const (
 	LogTypeBounty = "bounty"
 	LogTypeMining = "mining"
 	LogTypeNone   = "None"
+	LogTypeNotify = "notify"
 )
 
 // LocalePattern holds the language-specific strings used in Eve log headers
