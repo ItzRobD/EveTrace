@@ -135,10 +135,14 @@
 .stats-row {
   display: flex;
   gap: 2rem;
-  margin-top: 1rem;
+  margin-top: 0.5rem;
   padding: 0.75rem 1rem;
   background: var(--p-surface-50);
   border-radius: var(--p-border-radius-md);
+
+  &:first-of-type {
+    margin-top: 1rem;
+  }
 }
 
 .mini-stat {
@@ -161,11 +165,22 @@
 
   &.out { color: #3b82f6; }
   &.in  { color: #ef4444; }
+  &.isk { color: #eab308; }
 }
 
-/* Feed sections */
-.feed-section {
-  margin-top: 1rem;
+/* Feed tabs */
+.feed-tabs {
+  margin-top: 0.75rem;
+
+  :host ::ng-deep .p-tabpanel {
+    padding: 0.5rem 0 0;
+  }
+}
+
+.empty-feed {
+  padding: 0.75rem 0;
+  color: var(--p-text-muted-color);
+  font-size: 0.82rem;
 }
 
 .feed-entry {

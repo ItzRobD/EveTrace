@@ -28,7 +28,14 @@
     optionLabel="label"
     optionValue="value"
   />
-  @if (!replayActive()) {
+  @if (!streamActive()) {
+    <p-button
+      label="Go Live"
+      icon="pi pi-wifi"
+      severity="secondary"
+      [disabled]="!!replaySessionId()"
+      (onClick)="goLive()"
+    />
     <p-button
       label="Replay"
       icon="pi pi-play"
@@ -98,7 +105,7 @@
           }
         </div>
 
-        <!-- Stats Row -->
+        <!-- Stats Row 1: Combat & Bounties -->
         <div class="stats-row">
           <div class="mini-stat">
             <span class="mini-label">Avg Out DPS</span>
@@ -109,48 +116,149 @@
             <span class="mini-value in">{{ avgInDpsFor(state) | number }}</span>
           </div>
           <div class="mini-stat">
-            <span class="mini-label">Kills</span>
+            <span class="mini-label">Bounties</span>
             <span class="mini-value">{{ state.killFeed.length }}</span>
           </div>
+          <div class="mini-stat">
+            <span class="mini-label">Session ISK</span>
+            <span class="mini-value isk">{{ state.totalBountyISK | number }}</span>
+          </div>
+          <div class="mini-stat">
+            <span class="mini-label">ISK / hr</span>
+            <span class="mini-value isk">{{ iskPerHourFor(state) | number }}</span>
+          </div>
+        </div>
+        <!-- Stats Row 2: Mining & Nav -->
+        <div class="stats-row">
           <div class="mini-stat">
             <span class="mini-label">Mining / min</span>
             <span class="mini-value">{{ miningRateFor(state) | number }}</span>
           </div>
+          <div class="mini-stat">
+            <span class="mini-label">Total Mined</span>
+            <span class="mini-value">{{ state.totalMined | number }}</span>
+          </div>
+          <div class="mini-stat">
+            <span class="mini-label">Jumps</span>
+            <span class="mini-value">{{ state.jumpHistory.length }}</span>
+          </div>
+          <div class="mini-stat">
+            <span class="mini-label">Jumps / hr</span>
+            <span class="mini-value">{{ jumpsPerHourFor(state) | number }}</span>
+          </div>
         </div>
 
-        <!-- Kill Feed -->
-        @if (state.killFeed.length > 0) {
-          <div class="feed-section">
-            <span class="section-label">Kills</span>
-            @for (kill of state.killFeed; track $index) {
-              <div class="feed-entry kill-entry">
-                <span class="feed-time mono">{{ kill.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
-                <span class="feed-main">{{ kill.entity }}</span>
-                @if (kill.bounty > 0) {
-                  <span class="feed-value muted">{{ kill.bounty | number }} ISK</span>
-                }
-              </div>
-            }
-          </div>
-        }
+        <!-- Event Feed Tabs -->
+        <p-tabs
+          [value]="getFeedTab(state.characterName)"
+          (valueChange)="setFeedTab(state.characterName, $event)"
+          styleClass="feed-tabs"
+        >
+          <p-tablist>
+            <p-tab value="all">All</p-tab>
+            <p-tab value="combat">Combat</p-tab>
+            <p-tab value="bounties">Bounties</p-tab>
+            <p-tab value="mining">Mining</p-tab>
+            <p-tab value="nav">Nav</p-tab>
+          </p-tablist>
+          <p-tabpanels>
 
-        <!-- Combat Feed -->
-        @if (state.combatFeed.length > 0) {
-          <div class="feed-section">
-            <span class="section-label">Combat</span>
-            @for (e of state.combatFeed; track $index) {
-              <div class="feed-entry" [class.miss-entry]="e.miss">
-                <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
-                <p-tag
-                  [value]="e.direction"
-                  [severity]="e.direction === 'out' ? 'info' : 'danger'"
-                />
-                <span class="feed-main">{{ e.entity }}</span>
-                <span class="feed-value">{{ e.miss ? '—' : (e.damage | number) }}</span>
-              </div>
-            }
-          </div>
-        }
+            <!-- All -->
+            <p-tabpanel value="all">
+              @if (allFeedFor(state).length === 0) {
+                <div class="empty-feed">No events yet</div>
+              } @else {
+                @for (e of allFeedFor(state); track $index) {
+                  <div class="feed-entry" [class.miss-entry]="e.type === 'combat' && e.miss">
+                    <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
+                    @switch (e.type) {
+                      @case ('combat') {
+                        <p-tag [value]="e.direction!" [severity]="e.direction === 'out' ? 'info' : 'danger'" />
+                        <span class="feed-main">{{ e.entity }}</span>
+                        <span class="feed-value">{{ e.miss ? '—' : (e.damage! | number) }}</span>
+                      }
+                      @case ('mining') {
+                        <p-tag value="mine" severity="warn" />
+                        <span class="feed-main">{{ e.oreType }}</span>
+                        <span class="feed-value muted">{{ e.amount! | number }} units</span>
+                      }
+                      @case ('nav') {
+                        <p-tag value="jump" severity="secondary" />
+                        <span class="feed-main">{{ e.from || '—' }} → {{ e.to }}</span>
+                      }
+                    }
+                  </div>
+                }
+              }
+            </p-tabpanel>
+
+            <!-- Combat -->
+            <p-tabpanel value="combat">
+              @if (state.combatFeed.length === 0) {
+                <div class="empty-feed">No combat events</div>
+              } @else {
+                @for (e of state.combatFeed; track $index) {
+                  <div class="feed-entry" [class.miss-entry]="e.miss">
+                    <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
+                    <p-tag [value]="e.direction" [severity]="e.direction === 'out' ? 'info' : 'danger'" />
+                    <span class="feed-main">{{ e.entity }}</span>
+                    <span class="feed-value">{{ e.miss ? '—' : (e.damage | number) }}</span>
+                  </div>
+                }
+              }
+            </p-tabpanel>
+
+            <!-- Bounties -->
+            <p-tabpanel value="bounties">
+              @if (state.killFeed.length === 0) {
+                <div class="empty-feed">No bounties</div>
+              } @else {
+                @for (kill of state.killFeed; track $index) {
+                  <div class="feed-entry kill-entry">
+                    <span class="feed-time mono">{{ kill.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
+                    <p-tag value="kill" severity="success" />
+                    <span class="feed-main">{{ kill.entity }}</span>
+                    @if (kill.bounty > 0) {
+                      <span class="feed-value muted">{{ kill.bounty | number }} ISK</span>
+                    }
+                  </div>
+                }
+              }
+            </p-tabpanel>
+
+            <!-- Mining -->
+            <p-tabpanel value="mining">
+              @if (state.miningFeed.length === 0) {
+                <div class="empty-feed">No mining events</div>
+              } @else {
+                @for (e of state.miningFeed; track $index) {
+                  <div class="feed-entry">
+                    <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
+                    <p-tag value="mine" severity="warn" />
+                    <span class="feed-main">{{ e.oreType }}</span>
+                    <span class="feed-value muted">{{ e.amount | number }} units</span>
+                  </div>
+                }
+              }
+            </p-tabpanel>
+
+            <!-- Nav -->
+            <p-tabpanel value="nav">
+              @if (state.navFeed.length === 0) {
+                <div class="empty-feed">No jumps</div>
+              } @else {
+                @for (e of state.navFeed; track $index) {
+                  <div class="feed-entry">
+                    <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
+                    <p-tag value="jump" severity="secondary" />
+                    <span class="feed-main">{{ e.from || '—' }} → {{ e.to }}</span>
+                  </div>
+                }
+              }
+            </p-tabpanel>
+
+          </p-tabpanels>
+        </p-tabs>
 
       </p-card>
     }
