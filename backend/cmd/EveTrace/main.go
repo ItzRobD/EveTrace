@@ -1,6 +1,8 @@
 package main
 
 import (
+	"EveTrace/internal/database"
+	"EveTrace/internal/database/repo"
 	"EveTrace/internal/logger"
 	"EveTrace/pkg/core"
 	"EveTrace/pkg/parser"
@@ -12,7 +14,9 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sync"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -20,11 +24,18 @@ func main() {
 	fromStart := flag.Bool("from-start", false, "read existing log content from the beginning (useful with -print for replay)")
 	logDir := flag.String("logdir", defaultLogDir(), "path to Eve Online Gamelogs directory")
 	logFile := flag.String("logfile", "evetrace.log", "path to the application log file")
+	dbFile := flag.String("db", "evetrace.db", "path to the SQLite database file")
 	flag.Parse()
 
 	if err := logger.Init(*logFile); err != nil {
 		log.Fatalf("logger: %v", err)
 	}
+
+	if err := database.Init(*dbFile); err != nil {
+		logger.Error("database init failed", "err", err)
+		os.Exit(1)
+	}
+	defer database.Close()
 
 	if *logDir == "" {
 		logger.Error("-logdir is required on this platform",
@@ -36,13 +47,17 @@ func main() {
 	defer cancel()
 
 	// offsetFn returns the stored read position for a session so the tailer
-	// can resume where it left off after a restart. nil = always start from
-	// the beginning (used when -from-start is set, or until the DB is wired up).
+	// can resume where it left off after a restart.
 	var offsetFn watcher.OffsetFn
 	if !*fromStart {
-		// TODO: replace with a real DB lookup once the schema is in place.
-		// offsetFn = func(id string) int64 { return database.GetOffset(id) }
-		offsetFn = nil // falls back to reading from beginning for now
+		offsetFn = func(id string) int64 {
+			offset, err := repo.GetSessionOffset(database.DB(), id)
+			if err != nil {
+				logger.Error("get session offset", "session", id, "err", err)
+				return 0
+			}
+			return offset
+		}
 	}
 
 	w, err := watcher.New(ctx, *logDir, offsetFn)
@@ -51,7 +66,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Drain log events: route to the appropriate slog level and (later) forward to the WebSocket hub.
+	buf := repo.NewEventBuffer()
+	go buf.Run(ctx, database.DB(), 2*time.Minute)
+
+	// Drain log events: route to the appropriate slog level and forward to the WebSocket hub.
 	go func() {
 		for ev := range w.LogEvents() {
 			args := []any{"code", ev.Code, "file", ev.File}
@@ -68,36 +86,85 @@ func main() {
 		}
 	}()
 
+	var finalOffsets map[int32]int64
 	if *printMode {
-		runPrint(ctx, w)
+		finalOffsets = runPrint(ctx, w, buf)
 	} else {
 		fmt.Println("serve mode not yet implemented — use -print to test the parser")
 		<-ctx.Done()
 	}
+
+	// Flush events first, then save offsets only on success so offsets never
+	// advance past the last successfully written event.
+	logger.Info("flushing event buffer", "buffered", buf.Len(), "totalAdded", buf.TotalAdded())
+	if n, err := buf.Flush(database.DB()); err != nil {
+		logger.Error("final buffer flush", "err", err)
+	} else {
+		logger.Info("final buffer flush complete", "written", n)
+		for sid, offset := range finalOffsets {
+			if err := repo.UpdateSessionOffset(database.DB(), sid, offset); err != nil {
+				logger.Error("update session offset", "sid", sid, "err", err)
+			}
+		}
+	}
 }
 
-func runPrint(ctx context.Context, w *watcher.Watcher) {
+// runPrint processes all sessions, printing events to stdout and buffering them
+// for DB insertion. Returns a map of sessionID → final byte offset for each
+// session, to be saved after the event buffer is flushed successfully.
+func runPrint(ctx context.Context, w *watcher.Watcher, buf *repo.EventBuffer) map[int32]int64 {
+	var (
+		wg        sync.WaitGroup
+		offsetsMu sync.Mutex
+		offsets   = make(map[int32]int64)
+	)
+
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			wg.Wait()
+			return offsets
 		case sess, ok := <-w.Sessions():
 			if !ok {
-				return
+				wg.Wait()
+				return offsets
 			}
 			fmt.Printf("--- session: %s (started %s) ---\n",
 				sess.Header.Character,
 				sess.Header.StartedAt.Format("2006-01-02 15:04:05"),
 			)
+
+			charID, err := repo.UpsertCharacter(database.DB(), sess.Header.Character)
+			if err != nil {
+				logger.Error("upsert character", "character", sess.Header.Character, "err", err)
+			}
+			sessionID, err := repo.UpsertSession(database.DB(), charID, sess.ID, sess.LogPath,
+				sess.Header.StartedAt, string(sess.Header.Language))
+			if err != nil {
+				logger.Error("upsert session", "session", sess.ID, "err", err)
+			}
+			logger.Debug("session registered", "session", sess.ID, "charID", charID, "sessionID", sessionID)
+
 			p := parser.New(sess.Header.Language)
-			go func(s watcher.Session, p *parser.Parser) {
+			wg.Add(1)
+			go func(s watcher.Session, p *parser.Parser, sid int32) {
+				defer wg.Done()
 				for l := range s.Lines {
 					for _, ev := range p.Parse(s.ID, l.Text) {
 						ev.Live = l.Live
 						printEvent(ev)
+						if sid != 0 {
+							buf.Add(sid, ev)
+						}
 					}
 				}
-			}(sess, p)
+				// Record the final read position; saved to DB after flush succeeds.
+				if sid != 0 {
+					offsetsMu.Lock()
+					offsets[sid] = s.CurrentOffset()
+					offsetsMu.Unlock()
+				}
+			}(sess, p, sessionID)
 		}
 	}
 }

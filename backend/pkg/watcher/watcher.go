@@ -27,6 +27,7 @@ type OffsetFn func(sessionID string) int64
 type Session struct {
 	Header        core.SessionHeader
 	ID            string
+	LogPath       string
 	Lines         <-chan core.Line
 	CurrentOffset func() int64 // call this to get the tailer's current read position
 }
@@ -138,6 +139,7 @@ func (w *Watcher) addFile(ctx context.Context, path string, offsetFn OffsetFn) {
 	case w.sessions <- Session{
 		Header:        header,
 		ID:            id,
+		LogPath:       path,
 		Lines:         t.Lines(),
 		CurrentOffset: t.CurrentOffset,
 	}:

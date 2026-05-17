@@ -2,14 +2,19 @@ package database
 
 import (
 	"database/sql"
+	_ "embed"
 	"fmt"
 
 	_ "modernc.org/sqlite"
 )
 
+//go:embed schema.sql
+var schema string
+
 var db *sql.DB
 
-// Init opens the SQLite database at path and configures it for the application.
+// Init opens the SQLite database at path, configures it, and applies the
+// schema (idempotent — all statements use CREATE TABLE IF NOT EXISTS).
 // Call Close when the process exits.
 func Init(path string) error {
 	var err error
@@ -28,6 +33,10 @@ func Init(path string) error {
 	}
 	if _, err = db.Exec(`PRAGMA foreign_keys=ON`); err != nil {
 		return fmt.Errorf("enable foreign keys: %w", err)
+	}
+
+	if _, err = db.Exec(schema); err != nil {
+		return fmt.Errorf("apply schema: %w", err)
 	}
 
 	return nil
