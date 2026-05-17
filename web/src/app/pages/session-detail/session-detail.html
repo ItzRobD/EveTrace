@@ -1,0 +1,287 @@
+@if (loading()) {
+  <div class="skeleton-wrap">
+    <p-skeleton height="2rem" width="16rem" styleClass="mb-3" />
+    <p-skeleton height="3rem" styleClass="mb-2" />
+    <p-skeleton height="20rem" />
+  </div>
+} @else if (!session()) {
+  <div class="not-found">
+    <i class="pi pi-exclamation-circle"></i>
+    <p>Session not found.</p>
+    <a routerLink="/characters">Back to Characters</a>
+  </div>
+} @else {
+  <div class="session-header">
+    <div class="session-title">
+      <h2>{{ characterName() }}</h2>
+      <p-tag [value]="session()!.Language" severity="secondary" />
+    </div>
+    <div class="session-meta">
+      <span>{{ session()!.StartedAt | date: 'medium' }}</span>
+      <span class="session-key-label">{{ session()!.SessionKey }}</span>
+    </div>
+  </div>
+
+  <p-tabs value="combat">
+    <p-tablist>
+      <p-tab value="combat">
+        <i class="pi pi-crosshairs"></i> Combat
+      </p-tab>
+      <p-tab value="mining">
+        <i class="pi pi-database"></i> Mining
+      </p-tab>
+      <p-tab value="travel">
+        <i class="pi pi-map"></i> Travel
+      </p-tab>
+      <p-tab value="cap">
+        <i class="pi pi-bolt"></i> Cap
+      </p-tab>
+      <p-tab value="reload">
+        <i class="pi pi-refresh"></i> Reload
+      </p-tab>
+    </p-tablist>
+
+    <p-tabpanels>
+
+      <!-- COMBAT TAB -->
+      <p-tabpanel value="combat" [lazy]="true">
+        <div class="stats-row">
+          <div class="stat-card">
+            <span class="stat-label">Damage Out</span>
+            <span class="stat-value out">{{ combatStats().totalDamageOut | number }}</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Damage In</span>
+            <span class="stat-value in">{{ combatStats().totalDamageIn | number }}</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Kills</span>
+            <span class="stat-value">{{ combatStats().totalKills | number }}</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Bounty ISK</span>
+            <span class="stat-value">{{ combatStats().totalBounty | number }}</span>
+          </div>
+        </div>
+
+        @if (combatEvents().length > 0) {
+          <div class="chart-wrap">
+            <canvas baseChart
+              type="bar"
+              [data]="damageChartData()"
+              [options]="damageChartOptions"
+            ></canvas>
+          </div>
+        }
+
+        <div class="table-toolbar">
+          <input
+            pInputText
+            type="text"
+            placeholder="Filter by entity…"
+            [ngModel]="combatFilter()"
+            (ngModelChange)="combatFilter.set($event)"
+            size="small"
+          />
+          <p-select
+            [options]="directionOptions"
+            [ngModel]="directionFilter()"
+            (ngModelChange)="directionFilter.set($event)"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Direction"
+          />
+        </div>
+
+        <p-table
+          [value]="filteredCombatEvents()"
+          [rowHover]="true"
+          size="small"
+          [paginator]="true"
+          [rows]="100"
+          [rowsPerPageOptions]="[50, 100, 250]"
+          [showCurrentPageReport]="true"
+          currentPageReportTemplate="{first}–{last} of {totalRecords}"
+        >
+          <ng-template #header>
+            <tr>
+              <th>Time</th>
+              <th>Dir</th>
+              <th>Damage</th>
+              <th>Entity</th>
+              <th>Weapon</th>
+              <th>Hit</th>
+            </tr>
+          </ng-template>
+          <ng-template #body let-e>
+            <tr [class.miss-row]="e.IsMiss">
+              <td class="mono">{{ e.Timestamp | date: 'HH:mm:ss' : 'UTC' }}</td>
+              <td>
+                <p-tag
+                  [value]="e.Direction"
+                  [severity]="e.Direction === 'out' ? 'info' : 'danger'"
+                />
+              </td>
+              <td>{{ e.IsMiss ? '—' : (e.Damage | number) }}</td>
+              <td>{{ e.Entity }}</td>
+              <td class="muted">{{ e.Weapon ?? '—' }}</td>
+              <td class="muted">{{ e.HitType ?? (e.IsMiss ? 'Miss' : '—') }}</td>
+            </tr>
+          </ng-template>
+          <ng-template #emptymessage>
+            <tr><td colspan="6" class="empty-cell">No combat events.</td></tr>
+          </ng-template>
+        </p-table>
+      </p-tabpanel>
+
+      <!-- MINING TAB -->
+      <p-tabpanel value="mining" [lazy]="true">
+        <div class="stats-row">
+          <div class="stat-card">
+            <span class="stat-label">Total Yield</span>
+            <span class="stat-value">{{ miningStats().totalYield | number }}</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Residue Lost</span>
+            <span class="stat-value in">{{ miningStats().residueTotal | number }}</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Ore Types</span>
+            <span class="stat-value">{{ miningStats().oreEntries.length }}</span>
+          </div>
+        </div>
+
+        @if (miningStats().oreEntries.length > 0) {
+          <div class="ore-breakdown">
+            <h4>Yield by Ore Type</h4>
+            <div class="ore-grid">
+              @for (entry of miningStats().oreEntries; track entry[0]) {
+                <div class="ore-card">
+                  <span class="ore-name">{{ entry[0] }}</span>
+                  <span class="ore-amount">{{ entry[1] | number }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <p-table
+          [value]="miningEvents()"
+          [rowHover]="true"
+          size="small"
+          [paginator]="true"
+          [rows]="100"
+          [rowsPerPageOptions]="[50, 100, 250]"
+          [showCurrentPageReport]="true"
+          currentPageReportTemplate="{first}–{last} of {totalRecords}"
+        >
+          <ng-template #header>
+            <tr>
+              <th>Time</th>
+              <th>Ore Type</th>
+              <th>Amount</th>
+              <th>Residue</th>
+              <th>Critical</th>
+            </tr>
+          </ng-template>
+          <ng-template #body let-e>
+            <tr>
+              <td class="mono">{{ e.Timestamp | date: 'HH:mm:ss' : 'UTC' }}</td>
+              <td>{{ e.OreType ?? '—' }}</td>
+              <td>{{ e.Amount | number }}</td>
+              <td>
+                @if (e.IsResidue) {
+                  <p-tag value="yes" severity="warn" />
+                }
+              </td>
+              <td>
+                @if (e.IsCritical) {
+                  <p-tag value="crit" severity="success" />
+                }
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template #emptymessage>
+            <tr><td colspan="5" class="empty-cell">No mining events.</td></tr>
+          </ng-template>
+        </p-table>
+      </p-tabpanel>
+
+      <!-- TRAVEL TAB -->
+      <p-tabpanel value="travel" [lazy]="true">
+        <p-table [value]="travelEvents()" [rowHover]="true" size="small">
+          <ng-template #header>
+            <tr>
+              <th>Time</th>
+              <th>From</th>
+              <th></th>
+              <th>To</th>
+            </tr>
+          </ng-template>
+          <ng-template #body let-e>
+            <tr>
+              <td class="mono">{{ e.Timestamp | date: 'HH:mm:ss' : 'UTC' }}</td>
+              <td class="muted">{{ e.FromSystem ?? 'Station (undock)' }}</td>
+              <td><i class="pi pi-arrow-right"></i></td>
+              <td>{{ e.ToSystem }}</td>
+            </tr>
+          </ng-template>
+          <ng-template #emptymessage>
+            <tr><td colspan="4" class="empty-cell">No travel events.</td></tr>
+          </ng-template>
+        </p-table>
+      </p-tabpanel>
+
+      <!-- CAP TAB -->
+      <p-tabpanel value="cap" [lazy]="true">
+        <p-table [value]="capEvents()" [rowHover]="true" size="small">
+          <ng-template #header>
+            <tr>
+              <th>Time</th>
+              <th>Module</th>
+              <th>Required</th>
+              <th>Available</th>
+            </tr>
+          </ng-template>
+          <ng-template #body let-e>
+            <tr>
+              <td class="mono">{{ e.Timestamp | date: 'HH:mm:ss' : 'UTC' }}</td>
+              <td>{{ e.Module }}</td>
+              <td class="in">{{ e.CapRequired }}</td>
+              <td class="muted">{{ e.CapAvailable }}</td>
+            </tr>
+          </ng-template>
+          <ng-template #emptymessage>
+            <tr><td colspan="4" class="empty-cell">No cap starvation events.</td></tr>
+          </ng-template>
+        </p-table>
+      </p-tabpanel>
+
+      <!-- RELOAD TAB -->
+      <p-tabpanel value="reload" [lazy]="true">
+        <p-table [value]="reloadEvents()" [rowHover]="true" size="small">
+          <ng-template #header>
+            <tr>
+              <th>Time</th>
+              <th>Charge</th>
+              <th>Launcher</th>
+              <th>Duration (s)</th>
+            </tr>
+          </ng-template>
+          <ng-template #body let-e>
+            <tr>
+              <td class="mono">{{ e.Timestamp | date: 'HH:mm:ss' : 'UTC' }}</td>
+              <td>{{ e.Charge }}</td>
+              <td class="muted">{{ e.Launcher }}</td>
+              <td>{{ e.DurationSeconds }}</td>
+            </tr>
+          </ng-template>
+          <ng-template #emptymessage>
+            <tr><td colspan="4" class="empty-cell">No reload events.</td></tr>
+          </ng-template>
+        </p-table>
+      </p-tabpanel>
+
+    </p-tabpanels>
+  </p-tabs>
+}

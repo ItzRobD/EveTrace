@@ -1,0 +1,71 @@
+<header class="top-bar">
+  @if (sidebarCollapsed || isMobile()) {
+    <p-button
+      icon="pi pi-bars"
+      [text]="true"
+      severity="secondary"
+      (onClick)="onHamburgerClick()"
+    />
+  }
+  <span class="app-brand">EveTrace</span>
+  <span class="spacer"></span>
+  <p-tag
+    [value]="connectionStatus()"
+    [severity]="statusSeverity(connectionStatus())"
+  />
+</header>
+
+<div class="body-layout">
+  <nav class="sidebar" [class.collapsed]="sidebarCollapsed">
+    <div class="sidebar-items">
+      @for (item of navItems; track item.route) {
+        <a
+          class="nav-item"
+          [routerLink]="item.route"
+          routerLinkActive="nav-item--active"
+          [pTooltip]="item.label"
+          tooltipPosition="right"
+          [tooltipDisabled]="!sidebarCollapsed"
+        >
+          <i [class]="item.icon"></i>
+          @if (!sidebarCollapsed) {
+            <span class="nav-label">{{ item.label }}</span>
+          }
+        </a>
+      }
+    </div>
+
+    <div class="sidebar-footer">
+      @if (!sidebarCollapsed) {
+        <p-button
+          icon="pi pi-chevron-left"
+          [text]="true"
+          severity="secondary"
+          pTooltip="Collapse sidebar"
+          tooltipPosition="right"
+          (onClick)="sidebarCollapsed = true"
+        />
+      }
+    </div>
+  </nav>
+
+  <p-drawer [(visible)]="drawerOpen" position="left" header="EveTrace">
+    <nav class="drawer-nav">
+      @for (item of navItems; track item.route) {
+        <a
+          class="nav-item"
+          [routerLink]="item.route"
+          routerLinkActive="nav-item--active"
+          (click)="drawerOpen = false"
+        >
+          <i [class]="item.icon"></i>
+          <span>{{ item.label }}</span>
+        </a>
+      }
+    </nav>
+  </p-drawer>
+
+  <main class="page-content">
+    <router-outlet />
+  </main>
+</div>

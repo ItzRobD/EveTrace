@@ -1,0 +1,71 @@
+.page-header {
+  margin-bottom: 1.5rem;
+
+  h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+}
+
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 4rem 2rem;
+  color: var(--p-text-muted-color);
+  text-align: center;
+
+  .empty-icon {
+    font-size: 3rem;
+    opacity: 0.4;
+  }
+
+  p {
+    max-width: 28rem;
+    margin: 0;
+  }
+}
+
+.char-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding-right: 0.5rem;
+}
+
+.char-name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.session-skeleton {
+  padding: 0.5rem 0;
+}
+
+.session-key {
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+
+.empty-sessions {
+  text-align: center;
+  color: var(--p-text-muted-color);
+  padding: 1.5rem !important;
+  font-style: italic;
+}

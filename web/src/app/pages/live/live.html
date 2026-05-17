@@ -1,0 +1,158 @@
+<div class="page-header">
+  <h2>Live Dashboard</h2>
+</div>
+
+<!-- Replay toolbar (dev / testing tool) -->
+<div class="replay-toolbar">
+  <p-select
+    [options]="allSessions()"
+    [ngModel]="replaySessionId()"
+    (ngModelChange)="replaySessionId.set($event)"
+    optionLabel="SessionKey"
+    optionValue="ID"
+    placeholder="Pick session to replay…"
+    [filter]="true"
+    filterBy="SessionKey"
+  />
+  <p-select
+    [options]="speedOptions"
+    [ngModel]="replaySpeed()"
+    (ngModelChange)="replaySpeed.set($event)"
+    optionLabel="label"
+    optionValue="value"
+  />
+  <p-select
+    [options]="maxGapOptions"
+    [ngModel]="replayMaxGap()"
+    (ngModelChange)="replayMaxGap.set($event)"
+    optionLabel="label"
+    optionValue="value"
+  />
+  @if (!replayActive()) {
+    <p-button
+      label="Replay"
+      icon="pi pi-play"
+      severity="secondary"
+      [disabled]="!replaySessionId()"
+      (onClick)="startReplay()"
+    />
+  } @else {
+    <p-button
+      label="Stop"
+      icon="pi pi-stop"
+      severity="danger"
+      (onClick)="stopReplay()"
+    />
+  }
+  @if (replayInfo()) {
+    <span class="replay-info">{{ replayInfo() }}</span>
+  }
+</div>
+
+@if (loading()) {
+  <div class="skeleton-wrap">
+    <p-skeleton height="260px" styleClass="mb-3" />
+    <p-skeleton height="260px" />
+  </div>
+} @else if (activeChars().length === 0) {
+  <div class="empty-state">
+    <i class="pi pi-wifi"></i>
+    <h3>Waiting for live events…</h3>
+    <p>Start EVE Online and ensure the backend is watching your log directory. Events will appear here in real time.</p>
+  </div>
+} @else {
+  <div class="char-grid">
+    @for (state of activeChars(); track state.characterName) {
+      <p-card>
+        <ng-template #header>
+          <div class="card-header">
+            <div class="char-identity">
+              <span class="char-name">{{ state.characterName }}</span>
+              @if (state.sessionDbId) {
+                <a [routerLink]="['/sessions', state.sessionDbId]" class="session-link">
+                  <i class="pi pi-external-link"></i> Session
+                </a>
+              }
+            </div>
+            @if (state.capAlert) {
+              <div class="cap-alert">
+                <i class="pi pi-bolt"></i> Cap Starved: {{ state.capAlertModule }}
+              </div>
+            }
+          </div>
+        </ng-template>
+
+        <!-- DPS Chart -->
+        <div class="chart-section">
+          <span class="section-label">Outgoing DPS — 2 min rolling</span>
+          @if (state.dpsBuckets.length > 0) {
+            <div class="chart-wrap">
+              <canvas baseChart
+                type="line"
+                [data]="state.chartData"
+                [options]="lineChartOptions"
+              ></canvas>
+            </div>
+          } @else {
+            <div class="empty-chart">No combat data yet</div>
+          }
+        </div>
+
+        <!-- Stats Row -->
+        <div class="stats-row">
+          <div class="mini-stat">
+            <span class="mini-label">Avg Out DPS</span>
+            <span class="mini-value out">{{ avgDpsFor(state) | number }}</span>
+          </div>
+          <div class="mini-stat">
+            <span class="mini-label">Avg In DPS</span>
+            <span class="mini-value in">{{ avgInDpsFor(state) | number }}</span>
+          </div>
+          <div class="mini-stat">
+            <span class="mini-label">Kills</span>
+            <span class="mini-value">{{ state.killFeed.length }}</span>
+          </div>
+          <div class="mini-stat">
+            <span class="mini-label">Mining / min</span>
+            <span class="mini-value">{{ miningRateFor(state) | number }}</span>
+          </div>
+        </div>
+
+        <!-- Kill Feed -->
+        @if (state.killFeed.length > 0) {
+          <div class="feed-section">
+            <span class="section-label">Kills</span>
+            @for (kill of state.killFeed; track $index) {
+              <div class="feed-entry kill-entry">
+                <span class="feed-time mono">{{ kill.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
+                <span class="feed-main">{{ kill.entity }}</span>
+                @if (kill.bounty > 0) {
+                  <span class="feed-value muted">{{ kill.bounty | number }} ISK</span>
+                }
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Combat Feed -->
+        @if (state.combatFeed.length > 0) {
+          <div class="feed-section">
+            <span class="section-label">Combat</span>
+            @for (e of state.combatFeed; track $index) {
+              <div class="feed-entry" [class.miss-entry]="e.miss">
+                <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
+                <p-tag
+                  [value]="e.direction"
+                  [severity]="e.direction === 'out' ? 'info' : 'danger'"
+                />
+                <span class="feed-main">{{ e.entity }}</span>
+                <span class="feed-value">{{ e.miss ? '—' : (e.damage | number) }}</span>
+              </div>
+            }
+          </div>
+        }
+
+      </p-card>
+    }
+  </div>
+}

@@ -1,0 +1,99 @@
+<p-confirmdialog />
+
+<div class="page-header">
+  <h2>Characters</h2>
+</div>
+
+@if (loading()) {
+  <div class="skeleton-list">
+    @for (i of [1, 2, 3]; track i) {
+      <p-skeleton height="3.5rem" styleClass="mb-2" />
+    }
+  </div>
+} @else if (characters().length === 0) {
+  <div class="empty-state">
+    <i class="pi pi-users empty-icon"></i>
+    <p>No characters found. Start the backend with a log directory to begin tracking.</p>
+  </div>
+} @else {
+  <p-accordion [multiple]="true">
+    @for (char of characters(); track char.ID) {
+      <p-accordion-panel [value]="char.ID">
+        <p-accordion-header (click)="loadSessionsIfNeeded(char.ID)">
+          <div class="char-header">
+            <span class="char-name">{{ char.Name }}</span>
+            <p-button
+              icon="pi pi-trash"
+              [text]="true"
+              severity="danger"
+              size="small"
+              pTooltip="Delete character"
+              tooltipPosition="left"
+              (onClick)="confirmDeleteCharacter($event, char)"
+            />
+          </div>
+        </p-accordion-header>
+
+        <p-accordion-content>
+          @if (isLoadingSessions(char.ID)) {
+            <div class="session-skeleton">
+              @for (i of [1, 2]; track i) {
+                <p-skeleton height="2.5rem" styleClass="mb-1" />
+              }
+            </div>
+          } @else {
+            <p-table
+              [value]="getSessions(char.ID)"
+              [rowHover]="true"
+              size="small"
+            >
+              <ng-template #header>
+                <tr>
+                  <th>Started</th>
+                  <th>Language</th>
+                  <th>Session Key</th>
+                  <th style="width: 7rem"></th>
+                </tr>
+              </ng-template>
+              <ng-template #body let-session>
+                <tr>
+                  <td>{{ session.StartedAt | date: 'medium' }}</td>
+                  <td>
+                    <p-tag [value]="session.Language" severity="secondary" />
+                  </td>
+                  <td class="session-key">{{ session.SessionKey }}</td>
+                  <td>
+                    <div class="row-actions">
+                      <p-button
+                        icon="pi pi-chart-bar"
+                        [text]="true"
+                        size="small"
+                        pTooltip="View session"
+                        tooltipPosition="left"
+                        [routerLink]="['/sessions', session.ID]"
+                      />
+                      <p-button
+                        icon="pi pi-trash"
+                        [text]="true"
+                        severity="danger"
+                        size="small"
+                        pTooltip="Delete session"
+                        tooltipPosition="left"
+                        (onClick)="confirmDeleteSession(session, char.ID)"
+                      />
+                    </div>
+                  </td>
+                </tr>
+              </ng-template>
+              <ng-template #emptymessage>
+                <tr>
+                  <td colspan="4" class="empty-sessions">No sessions recorded yet.</td>
+                </tr>
+              </ng-template>
+            </p-table>
+          }
+        </p-accordion-content>
+      </p-accordion-panel>
+    }
+  </p-accordion>
+}
