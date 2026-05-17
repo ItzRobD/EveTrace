@@ -46,6 +46,40 @@ func DeleteSession(db *sql.DB, sessionID int32) error {
 	return nil
 }
 
+// ClearSessionEvents deletes all events for a session but leaves the session row
+// itself intact. Called before re-reading a log file from the start so that the
+// rebuilt event set replaces the old one rather than appending to it.
+func ClearSessionEvents(db *sql.DB, sessionID int32) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("clear events session %d: begin tx: %w", sessionID, err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	id := Int32(sessionID)
+	steps := []struct {
+		name string
+		stmt DeleteStatement
+	}{
+		{"combat_events", table.CombatEvents.DELETE().WHERE(table.CombatEvents.SessionID.EQ(id))},
+		{"kill_events", table.KillEvents.DELETE().WHERE(table.KillEvents.SessionID.EQ(id))},
+		{"mining_events", table.MiningEvents.DELETE().WHERE(table.MiningEvents.SessionID.EQ(id))},
+		{"mining_full_events", table.MiningFullEvents.DELETE().WHERE(table.MiningFullEvents.SessionID.EQ(id))},
+		{"travel_events", table.TravelEvents.DELETE().WHERE(table.TravelEvents.SessionID.EQ(id))},
+		{"cap_events", table.CapEvents.DELETE().WHERE(table.CapEvents.SessionID.EQ(id))},
+		{"reload_events", table.ReloadEvents.DELETE().WHERE(table.ReloadEvents.SessionID.EQ(id))},
+	}
+	for _, s := range steps {
+		if _, err := s.stmt.Exec(tx); err != nil {
+			return fmt.Errorf("clear events session %d: %s: %w", sessionID, s.name, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("clear events session %d: commit: %w", sessionID, err)
+	}
+	return nil
+}
+
 // DeleteCharacter removes a character and all of their sessions and events in a
 // single transaction. Use with care — this permanently removes all history for
 // the character across every log file.

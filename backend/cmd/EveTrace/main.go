@@ -1,6 +1,7 @@
 package main
 
 import (
+	"EveTrace/internal/api"
 	"EveTrace/internal/database"
 	"EveTrace/internal/database/repo"
 	"EveTrace/internal/logger"
@@ -21,11 +22,12 @@ import (
 )
 
 func main() {
-	printMode := flag.Bool("print", false, "print parsed events to stdout instead of serving the web UI")
-	fromStart := flag.Bool("from-start", false, "read existing log content from the beginning (useful with -print for replay)")
+	printMode := flag.Bool("print", false, "print parsed events to stdout (debug mode; skips HTTP server)")
+	fromStart := flag.Bool("from-start", false, "read existing log content from the beginning (replay mode)")
 	logDir := flag.String("logdir", defaultLogDir(), "path to Eve Online Gamelogs directory")
 	logFile := flag.String("logfile", "evetrace.log", "path to the application log file")
 	dbFile := flag.String("db", "evetrace.db", "path to the SQLite database file")
+	addr := flag.String("addr", ":8080", "address for the HTTP/WebSocket server")
 	flushInterval := flag.Duration("flush-interval", 2*time.Minute, "how often to flush buffered events to the database and checkpoint read offsets")
 	flag.Parse()
 
@@ -68,6 +70,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	hub := api.NewHub()
+	go hub.Run(ctx.Done())
+
 	reg := newSessionRegistry()
 
 	buf := repo.NewEventBuffer()
@@ -93,10 +98,16 @@ func main() {
 	}()
 
 	if *printMode {
-		runPrint(ctx, w, buf, reg)
+		runPrint(ctx, w, buf, reg, *fromStart)
 	} else {
-		fmt.Println("serve mode not yet implemented — use -print to test the parser")
-		<-ctx.Done()
+		srv := api.New(database.DB(), hub, *addr, ctx)
+		go func() {
+			if err := srv.Run(ctx); err != nil {
+				logger.Error("http server", "err", err)
+			}
+		}()
+		logger.Info("server started", "addr", *addr)
+		runServe(ctx, w, buf, reg, hub, *fromStart)
 	}
 
 	// Flush events first, then checkpoint offsets only on success so offsets
@@ -110,7 +121,7 @@ func main() {
 	}
 }
 
-func runPrint(ctx context.Context, w *watcher.Watcher, buf *repo.EventBuffer, reg *sessionRegistry) {
+func runPrint(ctx context.Context, w *watcher.Watcher, buf *repo.EventBuffer, reg *sessionRegistry, fromStart bool) {
 	var wg sync.WaitGroup
 
 	for {
@@ -140,6 +151,11 @@ func runPrint(ctx context.Context, w *watcher.Watcher, buf *repo.EventBuffer, re
 			logger.Debug("session registered", "session", sess.ID, "charID", charID, "sessionID", sessionID)
 
 			if sessionID != 0 {
+				if fromStart {
+					if err := repo.ClearSessionEvents(database.DB(), sessionID); err != nil {
+						logger.Error("clear session events", "session", sess.ID, "err", err)
+					}
+				}
 				reg.register(sessionID, sess.CurrentOffset)
 			}
 
@@ -154,6 +170,60 @@ func runPrint(ctx context.Context, w *watcher.Watcher, buf *repo.EventBuffer, re
 						if sid != 0 {
 							buf.Add(sid, ev)
 						}
+					}
+				}
+			}(sess, p, sessionID)
+		}
+	}
+}
+
+// runServe is the live-mode session loop. It mirrors runPrint but does not
+// write to stdout and forwards live events to the WebSocket hub.
+func runServe(ctx context.Context, w *watcher.Watcher, buf *repo.EventBuffer, reg *sessionRegistry, hub *api.Hub, fromStart bool) {
+	var wg sync.WaitGroup
+
+	for {
+		select {
+		case <-ctx.Done():
+			wg.Wait()
+			return
+		case sess, ok := <-w.Sessions():
+			if !ok {
+				wg.Wait()
+				return
+			}
+			logger.Info("session opened", "session", sess.ID, "character", sess.Header.Character)
+
+			charID, err := repo.UpsertCharacter(database.DB(), sess.Header.Character)
+			if err != nil {
+				logger.Error("upsert character", "character", sess.Header.Character, "err", err)
+			}
+			sessionID, err := repo.UpsertSession(database.DB(), charID, sess.ID, sess.LogPath,
+				sess.Header.StartedAt, string(sess.Header.Language))
+			if err != nil {
+				logger.Error("upsert session", "session", sess.ID, "err", err)
+			}
+
+			if sessionID != 0 {
+				if fromStart {
+					if err := repo.ClearSessionEvents(database.DB(), sessionID); err != nil {
+						logger.Error("clear session events", "session", sess.ID, "err", err)
+					}
+				}
+				reg.register(sessionID, sess.CurrentOffset)
+			}
+
+			p := parser.New(sess.Header.Language)
+			wg.Add(1)
+			go func(s watcher.Session, p *parser.Parser, sid int32) {
+				defer wg.Done()
+				for l := range s.Lines {
+					for _, ev := range p.Parse(s.ID, l.Text) {
+						ev.Live = l.Live
+						if sid != 0 {
+							buf.Add(sid, ev)
+						}
+						hub.Send(ev) // no-op for replay events (Live=false)
 					}
 				}
 			}(sess, p, sessionID)
