@@ -19,7 +19,6 @@ import { LiveEvent } from '../../models/live-event.model';
 import { Session } from '../../models/session.model';
 import {
   applyEvent,
-  buildChartData,
   CAP_ALERT_MS,
   CharacterLiveState,
   EMPTY_STATE,
@@ -203,15 +202,7 @@ export class ReplayComponent implements OnInit, OnDestroy {
 
       const updated = applyEvent(existing, event);
 
-      const chartData =
-        updated.dpsBuckets !== existing.dpsBuckets ||
-        updated.killMarkers !== existing.killMarkers ||
-        updated.capMarkers !== existing.capMarkers ||
-        updated.criticalMarkers !== existing.criticalMarkers
-          ? buildChartData(updated.dpsBuckets, updated.killMarkers, updated.capMarkers, updated.criticalMarkers)
-          : existing.chartData;
-
-      updatedMap.set(charName, { ...updated, chartData });
+      updatedMap.set(charName, updated);
 
       if (event.Type === 'cap_starvation') {
         capTimeoutChars.push(charName);

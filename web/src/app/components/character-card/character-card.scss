@@ -255,3 +255,61 @@
 
 .mono { font-family: monospace; }
 .muted { color: var(--p-text-muted-color); font-weight: 400; }
+
+/* Entity table */
+.entity-scroll {
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--p-surface-border) transparent;
+}
+
+.entity-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+
+  thead tr {
+    border-bottom: 2px solid var(--p-surface-border);
+  }
+
+  th {
+    padding: 0.3rem 0.4rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--p-text-muted-color);
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--p-surface-border);
+    &:last-child { border-bottom: none; }
+    &:hover { background: var(--p-surface-50); }
+  }
+
+  td {
+    padding: 0.25rem 0.4rem;
+  }
+
+  .col-name {
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 180px;
+  }
+
+  .col-num {
+    text-align: right;
+    font-weight: 600;
+    color: var(--p-text-muted-color);
+    white-space: nowrap;
+  }
+
+  .val-kill { color: #f59e0b; }
+  .val-out  { color: #3b82f6; }
+  .val-in   { color: #ef4444; }
+}

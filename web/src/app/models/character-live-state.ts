@@ -1,4 +1,4 @@
-import { ChartData } from 'chart.js';
+import type { ChartData } from 'chart.js';
 import { LiveEvent } from './live-event.model';
 
 export const DPS_BUCKET_MS = 5_000;
@@ -30,6 +30,13 @@ export interface MiningFeedEntry {
   amount: number;
   residue: boolean;
   critical: boolean;
+}
+
+export interface EntityStat {
+  name: string;
+  kills: number;
+  dmgOut: number;
+  dmgIn: number;
 }
 
 export interface BountyEntry {
@@ -74,7 +81,7 @@ export interface CharacterLiveState {
   killMarkers: number[];
   capMarkers: number[];
   criticalMarkers: number[];
-  chartData: ChartData<'line'>;
+  entityStats: Record<string, EntityStat>;
   capAlert: boolean;
   capAlertModule: string | null;
 }
@@ -95,7 +102,7 @@ export const EMPTY_STATE: Omit<CharacterLiveState, 'characterName' | 'sessionKey
   killMarkers: [],
   capMarkers: [],
   criticalMarkers: [],
-  chartData: { labels: [], datasets: [] },
+  entityStats: {},
   capAlert: false,
   capAlertModule: null,
 };
@@ -238,6 +245,20 @@ export function applyEvent(
     updated.combatFeed = [entry, ...existing.combatFeed]
       .filter(e => new Date(e.timestamp).getTime() >= combatCutoff);
 
+    if (!event.Combat.Miss && event.Combat.Entity) {
+      const entityName = event.Combat.Entity;
+      const prev = existing.entityStats[entityName] ?? { name: entityName, kills: 0, dmgOut: 0, dmgIn: 0 };
+      const isOut = event.Combat.Direction === 'out';
+      updated.entityStats = {
+        ...existing.entityStats,
+        [entityName]: {
+          ...prev,
+          dmgOut: isOut ? prev.dmgOut + event.Combat.Damage : prev.dmgOut,
+          dmgIn: isOut ? prev.dmgIn : prev.dmgIn + event.Combat.Damage,
+        },
+      };
+    }
+
     if (!event.Combat.Miss) {
       const bucketTime =
         Math.floor(new Date(event.Timestamp).getTime() / DPS_BUCKET_MS) * DPS_BUCKET_MS;
@@ -274,6 +295,15 @@ export function applyEvent(
       ...existing.killFeed,
     ].filter(e => new Date(e.timestamp).getTime() >= killCutoff);
     updated.totalBountyISK = existing.totalBountyISK + event.Kill.BountyISK;
+
+    if (event.Kill.Entity) {
+      const entityName = event.Kill.Entity;
+      const prev = updated.entityStats[entityName] ?? { name: entityName, kills: 0, dmgOut: 0, dmgIn: 0 };
+      updated.entityStats = {
+        ...updated.entityStats,
+        [entityName]: { ...prev, kills: prev.kills + 1 },
+      };
+    }
     updated.bountyHistory = [
       ...existing.bountyHistory,
       { timestamp: event.Timestamp, isk: event.Kill.BountyISK },

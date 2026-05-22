@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { bufferTime, filter, Subject, takeUntil } from 'rxjs';
 import { Skeleton } from 'primeng/skeleton';
+import { Button } from 'primeng/button';
 import { CharacterCardComponent } from '../../components/character-card/character-card';
 import { ApiService } from '../../services/api.service';
 import { EventStreamService } from '../../services/event-stream.service';
@@ -16,7 +17,6 @@ import { LiveEvent } from '../../models/live-event.model';
 import { Session } from '../../models/session.model';
 import {
   applyEvent,
-  buildChartData,
   CAP_ALERT_MS,
   CharacterLiveState,
   EMPTY_STATE,
@@ -28,7 +28,7 @@ import {
   templateUrl: './live.html',
   styleUrl: './live.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CharacterCardComponent, Skeleton],
+  imports: [Button, CharacterCardComponent, Skeleton],
 })
 export class LiveComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
@@ -36,7 +36,14 @@ export class LiveComponent implements OnInit, OnDestroy {
 
   protected readonly loading = signal(true);
   protected readonly liveState = signal<Map<string, CharacterLiveState>>(new Map());
-  protected readonly activeChars = computed(() => [...this.liveState().values()]);
+  protected readonly hiddenChars = signal<Set<string>>(new Set());
+
+  protected readonly allChars = computed(() => [...this.liveState().values()]);
+  protected readonly activeChars = computed(() => {
+    const hidden = this.hiddenChars();
+    return this.allChars().filter(s => !hidden.has(s.characterName));
+  });
+  protected readonly showFilter = computed(() => this.allChars().length > 1);
 
   private readonly destroy$ = new Subject<void>();
   private sessionsByKey = new Map<string, Session>();
@@ -67,6 +74,15 @@ export class LiveComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
+  protected toggleChar(name: string): void {
+    this.hiddenChars.update(set => {
+      const next = new Set(set);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
   private processBatch(events: LiveEvent[]): void {
     const updatedMap = new Map(this.liveState());
     const capTimeoutChars: string[] = [];
@@ -90,15 +106,7 @@ export class LiveComponent implements OnInit, OnDestroy {
 
       const updated = applyEvent(existing, event);
 
-      const chartData =
-        updated.dpsBuckets !== existing.dpsBuckets ||
-        updated.killMarkers !== existing.killMarkers ||
-        updated.capMarkers !== existing.capMarkers ||
-        updated.criticalMarkers !== existing.criticalMarkers
-          ? buildChartData(updated.dpsBuckets, updated.killMarkers, updated.capMarkers, updated.criticalMarkers)
-          : existing.chartData;
-
-      updatedMap.set(charName, { ...updated, chartData });
+      updatedMap.set(charName, updated);
 
       if (event.Type === 'cap_starvation') {
         capTimeoutChars.push(charName);

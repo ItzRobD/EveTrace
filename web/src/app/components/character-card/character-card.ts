@@ -71,42 +71,57 @@ export class CharacterCardComponent {
   protected readonly accordionValue = signal<string[]>(['events']);
   protected readonly chartWindowMinutes = signal(2);
 
+  // Narrow intermediates — Angular's computed() uses === equality, so these only
+  // propagate when the specific array reference changes, not on every event type.
+  private readonly _dpsBuckets = computed(() => this.state().dpsBuckets);
+  private readonly _killMarkers = computed(() => this.state().killMarkers);
+  private readonly _capMarkers = computed(() => this.state().capMarkers);
+  private readonly _criticalMarkers = computed(() => this.state().criticalMarkers);
+  private readonly _combatFeed = computed(() => this.state().combatFeed);
+  private readonly _miningFeed = computed(() => this.state().miningFeed);
+  private readonly _navFeed = computed(() => this.state().navFeed);
+
   protected readonly windowedBuckets = computed(() => {
-    const s = this.state();
-    if (!s.dpsBuckets.length) return s.dpsBuckets;
+    const buckets = this._dpsBuckets();
+    if (!buckets.length) return buckets;
     const windowMs = this.chartWindowMinutes() * 60_000;
-    const latestTime = s.dpsBuckets[s.dpsBuckets.length - 1].time;
-    return s.dpsBuckets.filter(b => b.time >= latestTime - windowMs);
+    const latestTime = buckets[buckets.length - 1].time;
+    return buckets.filter(b => b.time >= latestTime - windowMs);
   });
 
-  protected readonly displayedChartData = computed(() => {
-    const s = this.state();
-    const buckets = this.windowedBuckets();
-    return buildChartData(buckets, s.killMarkers, s.capMarkers, s.criticalMarkers);
-  });
+  protected readonly displayedChartData = computed(() =>
+    buildChartData(this.windowedBuckets(), this._killMarkers(), this._capMarkers(), this._criticalMarkers()),
+  );
 
   protected get chartWindowValue(): number { return this.chartWindowMinutes(); }
   protected set chartWindowValue(v: number) { this.chartWindowMinutes.set(v); }
 
   protected readonly allFeed = computed(() => {
-    const s = this.state();
     const entries: FeedAllEntry[] = [
-      ...s.combatFeed.map(e => ({
+      ...this._combatFeed().map(e => ({
         timestamp: e.timestamp, type: 'combat' as const,
         direction: e.direction, damage: e.damage, entity: e.entity, miss: e.miss,
       })),
-      ...s.miningFeed.map(e => ({
+      ...this._miningFeed().map(e => ({
         timestamp: e.timestamp, type: 'mining' as const,
         oreType: e.oreType, amount: e.amount,
         residue: e.residue, critical: e.critical,
       })),
-      ...s.navFeed.map(e => ({
+      ...this._navFeed().map(e => ({
         timestamp: e.timestamp, type: 'nav' as const,
         from: e.from, to: e.to,
       })),
     ];
     return entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   });
+
+  private readonly _entityStats = computed(() => this.state().entityStats);
+
+  protected readonly entityRows = computed(() =>
+    Object.values(this._entityStats()).sort(
+      (a, b) => (b.kills * 100_000 + b.dmgOut + b.dmgIn) - (a.kills * 100_000 + a.dmgOut + a.dmgIn),
+    ),
+  );
 
   private static readonly MARKER_LABELS = new Set(['Kill', 'Cap Starved', 'Hold Full', 'Critical']);
 

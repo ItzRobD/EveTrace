@@ -7,16 +7,37 @@
     <p-skeleton height="260px" styleClass="mb-3" />
     <p-skeleton height="260px" />
   </div>
-} @else if (activeChars().length === 0) {
+} @else if (allChars().length === 0) {
   <div class="empty-state">
     <i class="pi pi-wifi"></i>
     <h3>Waiting for live events…</h3>
     <p>Start EVE Online and ensure the backend is watching your log directory. Events will appear here in real time.</p>
   </div>
 } @else {
-  <div class="char-grid">
-    @for (state of activeChars(); track state.characterName) {
-      <app-character-card [state]="state" />
-    }
-  </div>
+  @if (showFilter()) {
+    <div class="char-filter">
+      @for (state of allChars(); track state.characterName) {
+        <p-button
+          [label]="state.characterName"
+          [severity]="hiddenChars().has(state.characterName) ? 'secondary' : 'primary'"
+          size="small"
+          (onClick)="toggleChar(state.characterName)"
+        />
+      }
+    </div>
+  }
+
+  @if (activeChars().length === 0) {
+    <div class="empty-state">
+      <i class="pi pi-eye-slash"></i>
+      <h3>All characters hidden</h3>
+      <p>Click a character button above to show their card.</p>
+    </div>
+  } @else {
+    <div class="char-grid">
+      @for (state of activeChars(); track state.characterName) {
+        <app-character-card [state]="state" />
+      }
+    </div>
+  }
 }

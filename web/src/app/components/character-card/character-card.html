@@ -110,6 +110,7 @@
             <p-tab value="bounties">Bounties</p-tab>
             <p-tab value="mining">Mining</p-tab>
             <p-tab value="nav">Nav</p-tab>
+            <p-tab value="entities">Entities</p-tab>
           </p-tablist>
           <p-tabpanels>
 
@@ -225,6 +226,36 @@
                       <span class="feed-main">{{ e.from || '—' }} → {{ e.to }}</span>
                     </div>
                   }
+                </div>
+              }
+            </p-tabpanel>
+
+            <!-- Entities -->
+            <p-tabpanel value="entities">
+              @if (entityRows().length === 0) {
+                <div class="empty-feed">No entity data yet</div>
+              } @else {
+                <div class="entity-scroll">
+                  <table class="entity-table">
+                    <thead>
+                      <tr>
+                        <th class="col-name">Entity</th>
+                        <th class="col-num">Kills</th>
+                        <th class="col-num">Out Dmg</th>
+                        <th class="col-num">Inc Dmg</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (row of entityRows(); track row.name) {
+                        <tr>
+                          <td class="col-name">{{ row.name }}</td>
+                          <td class="col-num" [class.val-kill]="row.kills > 0">{{ row.kills || '—' }}</td>
+                          <td class="col-num" [class.val-out]="row.dmgOut > 0">{{ row.dmgOut > 0 ? (row.dmgOut | number) : '—' }}</td>
+                          <td class="col-num" [class.val-in]="row.dmgIn > 0">{{ row.dmgIn > 0 ? (row.dmgIn | number) : '—' }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
                 </div>
               }
             </p-tabpanel>
