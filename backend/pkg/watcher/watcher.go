@@ -3,6 +3,7 @@ package watcher
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,14 @@ import (
 	"EveTrace/pkg/core"
 	"EveTrace/pkg/tailer"
 )
+
+// errNoHeader is returned when a file contains no separator block at all
+// (empty files, non-Eve files). Silently ignored — no log, no retries.
+var errNoHeader = errors.New("no header block in file")
+
+// errNoListener is returned when the header block exists but contains no
+// Listener line — a session with no character attached. Logged at INFO.
+var errNoListener = errors.New("no listener in header")
 
 const headerTimeLayout = "2006.01.02 15:04:05"
 
@@ -72,10 +81,14 @@ func (w *Watcher) run(ctx context.Context, dir string, offsetFn OffsetFn, fw *fs
 	defer close(w.sessions)
 	defer close(w.logEvents)
 
+	// writes maps each active file path to the channel used by its tailer.
+	// Accessed only from this goroutine — no mutex needed.
+	writes := make(map[string]chan struct{})
+
 	// Initial scan for files already present in the directory.
 	existing, _ := filepath.Glob(filepath.Join(dir, "*.txt"))
 	for _, path := range existing {
-		w.addFile(ctx, path, offsetFn)
+		w.addFile(ctx, path, offsetFn, writes)
 	}
 
 	for {
@@ -86,8 +99,19 @@ func (w *Watcher) run(ctx context.Context, dir string, offsetFn OffsetFn, fw *fs
 			if !ok {
 				return
 			}
-			if ev.Has(fsnotify.Create) && strings.HasSuffix(ev.Name, ".txt") {
-				w.addFile(ctx, ev.Name, offsetFn)
+			if !strings.HasSuffix(ev.Name, ".txt") {
+				continue
+			}
+			if ev.Has(fsnotify.Create) {
+				w.addFile(ctx, ev.Name, offsetFn, writes)
+			}
+			if ev.Has(fsnotify.Write) {
+				if ch, ok := writes[ev.Name]; ok {
+					select {
+					case ch <- struct{}{}:
+					default: // tailer hasn't drained yet — coalesce
+					}
+				}
 			}
 		case <-fw.Errors:
 			// non-fatal
@@ -95,24 +119,34 @@ func (w *Watcher) run(ctx context.Context, dir string, offsetFn OffsetFn, fw *fs
 	}
 }
 
-// addFile adds a file to the Watcher, creates a session, and starts tailing it for log lines.
-// The session includes metadata, a unique ID, and current read offset.
-func (w *Watcher) addFile(ctx context.Context, path string, offsetFn OffsetFn) {
+// addFile parses the session header, creates a tailer, and emits the Session.
+func (w *Watcher) addFile(ctx context.Context, path string, offsetFn OffsetFn, writes map[string]chan struct{}) {
 	header, err := parseSessionHeaderWithRetry(ctx, path)
 	if err != nil {
-		w.emit(ctx, core.LogEvent{
-			Level:   core.LevelWarn,
-			Code:    core.CodeHeaderParseFail,
-			File:    path,
-			Message: fmt.Sprintf("could not read session header from %s: %v", path, err),
-			At:      time.Now(),
-		})
+		switch {
+		case errors.Is(err, errNoHeader):
+			// Empty or non-Eve file — silently ignore.
+		case errors.Is(err, errNoListener):
+			w.emit(ctx, core.LogEvent{
+				Level:   core.LevelInfo,
+				Code:    core.CodeNoListener,
+				File:    path,
+				Message: fmt.Sprintf("ignoring %s: no character attached (header-only file)", filepath.Base(path)),
+				At:      time.Now(),
+			})
+		default:
+			w.emit(ctx, core.LogEvent{
+				Level:   core.LevelWarn,
+				Code:    core.CodeHeaderParseFail,
+				File:    path,
+				Message: fmt.Sprintf("could not read session header from %s: %v", path, err),
+				At:      time.Now(),
+			})
+		}
 		return
 	}
 
 	if header.Collision {
-		// Two characters share this file; the second character's data is interleaved
-		// in a way the tailer cannot cleanly separate. Skip for now.
 		w.emit(ctx, core.LogEvent{
 			Level:   core.LevelWarn,
 			Code:    core.CodeCollision,
@@ -130,8 +164,14 @@ func (w *Watcher) addFile(ctx context.Context, path string, offsetFn OffsetFn) {
 		startOffset = offsetFn(id)
 	}
 
-	t, err := tailer.New(ctx, path, startOffset)
+	// Create the write-notification channel for this file and register it so
+	// the run loop can forward fsnotify Write events to the tailer.
+	writeCh := make(chan struct{}, 4)
+	writes[path] = writeCh
+
+	t, err := tailer.New(ctx, path, startOffset, writeCh)
 	if err != nil {
+		delete(writes, path)
 		return
 	}
 
@@ -163,11 +203,20 @@ func (w *Watcher) emit(ctx context.Context, ev core.LogEvent) {
 // log file slightly before it finishes writing the header.
 func parseSessionHeaderWithRetry(ctx context.Context, path string) (core.SessionHeader, error) {
 	delay := 50 * time.Millisecond
+	var lastErr error
 	for range 6 { // 50 → 100 → 200 → 400 → 800 → 1600 ms (~3.1 s total)
 		h, err := parseSessionHeader(path)
 		if err == nil {
 			return h, nil
 		}
+		lastErr = err
+		// errNoListener means the header is fully written but has no character —
+		// it will never change, so bail immediately without retrying.
+		if errors.Is(err, errNoListener) {
+			return core.SessionHeader{}, errNoListener
+		}
+		// errNoHeader means no separator found yet — may be a newly-created Eve
+		// file that hasn't been written to yet. Retry with backoff.
 		select {
 		case <-ctx.Done():
 			return core.SessionHeader{}, ctx.Err()
@@ -175,13 +224,18 @@ func parseSessionHeaderWithRetry(ctx context.Context, path string) (core.Session
 			delay *= 2
 		}
 	}
+	// Preserve errNoHeader so addFile can silently drop non-Eve files.
+	if errors.Is(lastErr, errNoHeader) {
+		return core.SessionHeader{}, errNoHeader
+	}
 	return core.SessionHeader{}, fmt.Errorf("could not read header from %s after retries", path)
 }
 
-// parseSessionHeader reads a file at the specified path and extracts a
-// SessionHeader. It auto-detects the client language from the Listener label
-// on header line 3 (0-indexed: line 2), and peeks at line 6 (index 5) to
-// flag collision logs where two characters share a single file.
+// parseSessionHeader reads the header block (text between the two separator
+// lines of dashes) and returns a SessionHeader.
+//
+// Returns errNoHeader if no separator line is found (empty / non-Eve files).
+// Returns errNoListener if the header block has no Listener label (no character).
 func parseSessionHeader(path string) (core.SessionHeader, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -189,48 +243,86 @@ func parseSessionHeader(path string) (core.SessionHeader, error) {
 	}
 	defer f.Close()
 
-	// Read up to 6 lines: 5 header lines + optional first content line.
 	scanner := bufio.NewScanner(f)
-	var raw [6]string
-	for i := 0; i < 6; i++ {
-		if !scanner.Scan() {
-			if i < 5 {
-				return core.SessionHeader{}, fmt.Errorf("header too short in %s (got %d lines)", path, i)
-			}
-			break // 6th line is optional
+
+	// Advance to the opening separator line ("---...").
+	foundSeparator := false
+	for scanner.Scan() {
+		if strings.HasPrefix(strings.TrimSpace(scanner.Text()), "---") {
+			foundSeparator = true
+			break
 		}
-		raw[i] = strings.TrimSpace(scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		return core.SessionHeader{}, fmt.Errorf("scanning %s: %w", path, err)
+	}
+	if !foundSeparator {
+		return core.SessionHeader{}, errNoHeader
 	}
 
-	// Line index 2: Listener label — determines the client language.
-	listenerLine := raw[2]
+	// Collect every line until the closing separator.
+	var headerLines []string
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "---") {
+			break
+		}
+		headerLines = append(headerLines, line)
+	}
+	if err := scanner.Err(); err != nil {
+		return core.SessionHeader{}, fmt.Errorf("scanning %s: %w", path, err)
+	}
+
+	if len(headerLines) == 0 {
+		return core.SessionHeader{}, fmt.Errorf("empty header block in %s", path)
+	}
+
+	// Search the header block for a Listener line to identify language and character.
 	var lang core.Language
 	var charName string
-	for l, lp := range core.Locales {
-		if strings.HasPrefix(listenerLine, lp.ListenerLabel) {
-			lang = l
-			charName = strings.TrimSpace(listenerLine[len(lp.ListenerLabel):])
+	for _, line := range headerLines {
+		for l, lp := range core.Locales {
+			if strings.HasPrefix(line, lp.ListenerLabel) {
+				lang = l
+				charName = strings.TrimSpace(line[len(lp.ListenerLabel):])
+				break
+			}
+		}
+		if charName != "" {
 			break
 		}
 	}
 	if charName == "" {
-		return core.SessionHeader{}, fmt.Errorf("no Listener line found in %s", path)
+		// Header block has no Listener line — no character is attached to this session.
+		return core.SessionHeader{}, errNoListener
 	}
 
-	// Line index 3: session start time.
+	// Search the header block for the session start time.
 	lp := core.Locales[lang]
-	timeLine := raw[3]
-	if !strings.HasPrefix(timeLine, lp.SessionTimeLabel) {
+	var startedAt time.Time
+	for _, line := range headerLines {
+		if strings.HasPrefix(line, lp.SessionTimeLabel) {
+			startedAt, err = time.Parse(headerTimeLayout, strings.TrimSpace(line[len(lp.SessionTimeLabel):]))
+			if err != nil {
+				return core.SessionHeader{}, fmt.Errorf("parse session time in %s: %w", path, err)
+			}
+			break
+		}
+	}
+	if startedAt.IsZero() {
 		return core.SessionHeader{}, fmt.Errorf("no session time line found in %s", path)
 	}
-	startedAt, err := time.Parse(headerTimeLayout, strings.TrimSpace(timeLine[len(lp.SessionTimeLabel):]))
-	if err != nil {
-		return core.SessionHeader{}, fmt.Errorf("parse session time in %s: %w", path, err)
-	}
 
-	// Line index 5: if it starts with "---" a second header block follows,
-	// meaning two characters logged in at exactly the same second.
-	collision := strings.HasPrefix(raw[5], "---")
+	// If a second separator block immediately follows, two characters logged in
+	// at the same second and their events are interleaved — skip the file.
+	collision := false
+	if scanner.Scan() {
+		next := strings.TrimSpace(scanner.Text())
+		for next == "" && scanner.Scan() {
+			next = strings.TrimSpace(scanner.Text())
+		}
+		collision = strings.HasPrefix(next, "---")
+	}
 
 	return core.SessionHeader{
 		Character: charName,

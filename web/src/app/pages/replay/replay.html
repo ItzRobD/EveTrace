@@ -1,0 +1,98 @@
+<div class="page-header">
+  <h2>Replay</h2>
+</div>
+
+<div class="replay-toolbar">
+  <p-select
+    [options]="sessionsWithEvents()"
+    [ngModel]="selectedSessionId()"
+    (ngModelChange)="onSessionChange($event)"
+    optionLabel="SessionKey"
+    optionValue="ID"
+    placeholder="Pick session to replay…"
+    [filter]="true"
+    filterBy="SessionKey"
+    [disabled]="replayActive()"
+  />
+  <p-select
+    [options]="speedOptions"
+    [ngModel]="replaySpeed()"
+    (ngModelChange)="replaySpeed.set($event)"
+    optionLabel="label"
+    optionValue="value"
+    [disabled]="replayActive()"
+  />
+  <p-select
+    [options]="maxGapOptions"
+    [ngModel]="replayMaxGap()"
+    (ngModelChange)="replayMaxGap.set($event)"
+    optionLabel="label"
+    optionValue="value"
+    [disabled]="replayActive()"
+  />
+
+  @if (!replayActive()) {
+    <p-button
+      label="Replay"
+      icon="pi pi-play"
+      severity="secondary"
+      [disabled]="!selectedSessionId()"
+      (onClick)="startReplay()"
+    />
+  } @else if (replayPaused()) {
+    <p-button
+      label="Resume"
+      icon="pi pi-play"
+      severity="success"
+      (onClick)="resumeReplay()"
+    />
+    <p-button
+      label="Stop"
+      icon="pi pi-stop"
+      severity="danger"
+      (onClick)="stopReplay()"
+    />
+  } @else {
+    <p-button
+      label="Pause"
+      icon="pi pi-pause"
+      severity="warn"
+      (onClick)="pauseReplay()"
+    />
+    <p-button
+      label="Stop"
+      icon="pi pi-stop"
+      severity="danger"
+      (onClick)="stopReplay()"
+    />
+  }
+
+  @if (replayInfo()) {
+    <span class="replay-info">{{ replayInfo() }}</span>
+  }
+</div>
+
+@if (loading()) {
+  <div class="skeleton-wrap">
+    <p-skeleton height="260px" styleClass="mb-3" />
+    <p-skeleton height="260px" />
+  </div>
+} @else if (!selectedSessionId()) {
+  <div class="empty-state">
+    <i class="pi pi-history"></i>
+    <h3>Select a session</h3>
+    <p>Pick a session from the dropdown above and click Replay to play it back.</p>
+  </div>
+} @else if (activeChars().length === 0) {
+  <div class="empty-state">
+    <i class="pi pi-play-circle"></i>
+    <h3>Ready to replay</h3>
+    <p>Click Replay to start. Events will stream in real time at the selected speed.</p>
+  </div>
+} @else {
+  <div class="char-grid">
+    @for (state of activeChars(); track state.characterName) {
+      <app-character-card [state]="state" />
+    }
+  </div>
+}

@@ -17,4 +17,9 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/live/live').then(m => m.LiveComponent),
   },
+  {
+    path: 'replay',
+    loadComponent: () =>
+      import('./pages/replay/replay').then(m => m.ReplayComponent),
+  },
 ];

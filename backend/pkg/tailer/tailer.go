@@ -9,8 +9,6 @@ import (
 	"sync/atomic"
 
 	"EveTrace/pkg/core"
-
-	"github.com/fsnotify/fsnotify"
 )
 
 const headerLines = 5
@@ -40,6 +38,10 @@ func (c *countingReader) Read(p []byte) (int, error) {
 //     that position, treating content from there forward as catch-up until
 //     the live edge, then Live=true.
 //
+// writes is a channel that receives a notification whenever the underlying
+// file has been written to. It is provided by the caller (typically the
+// directory watcher) so that all tailers share a single inotify instance.
+//
 // Lines emitted during catch-up have Live=false.
 // Once all existing content is drained and the tailer watches for new writes,
 // subsequent lines have Live=true.
@@ -48,27 +50,15 @@ type Tailer struct {
 	offset atomic.Int64
 }
 
-// New creates and starts a Tailer. Lines() is closed when ctx is cancelled
-// or the file watch fails.
-func New(ctx context.Context, path string, startOffset int64) (*Tailer, error) {
+// New creates and starts a Tailer. Lines() is closed when ctx is cancelled.
+func New(ctx context.Context, path string, startOffset int64, writes <-chan struct{}) (*Tailer, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 
-	fw, err := fsnotify.NewWatcher()
-	if err != nil {
-		f.Close()
-		return nil, err
-	}
-	if err := fw.Add(path); err != nil {
-		f.Close()
-		fw.Close()
-		return nil, err
-	}
-
 	t := &Tailer{lines: make(chan core.Line, 256)}
-	go t.run(ctx, f, fw, startOffset)
+	go t.run(ctx, f, startOffset, writes)
 	return t, nil
 }
 
@@ -76,13 +66,11 @@ func New(ctx context.Context, path string, startOffset int64) (*Tailer, error) {
 func (t *Tailer) Lines() <-chan core.Line { return t.lines }
 
 // CurrentOffset returns the byte position of the last fully consumed line.
-// Safe to call from any goroutine. The aggregate ticker passes this to the
-// database so the tailer can resume from this point after a restart.
+// Safe to call from any goroutine.
 func (t *Tailer) CurrentOffset() int64 { return t.offset.Load() }
 
-func (t *Tailer) run(ctx context.Context, f *os.File, fw *fsnotify.Watcher, startOffset int64) {
+func (t *Tailer) run(ctx context.Context, f *os.File, startOffset int64, writes <-chan struct{}) {
 	defer f.Close()
-	defer fw.Close()
 	defer close(t.lines)
 
 	cr := &countingReader{r: f}
@@ -109,20 +97,16 @@ func (t *Tailer) run(ctx context.Context, f *os.File, fw *fsnotify.Watcher, star
 	// Drain all existing content as historical data (Live=false).
 	t.readLines(ctx, r, cr, &partial, false)
 
-	// Transition to live: all subsequent lines written by the game client.
+	// Transition to live: wait for write notifications from the shared watcher.
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case ev, ok := <-fw.Events:
+		case _, ok := <-writes:
 			if !ok {
 				return
 			}
-			if ev.Has(fsnotify.Write) {
-				t.readLines(ctx, r, cr, &partial, true)
-			}
-		case <-fw.Errors:
-			// non-fatal
+			t.readLines(ctx, r, cr, &partial, true)
 		}
 	}
 }

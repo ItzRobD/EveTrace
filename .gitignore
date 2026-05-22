@@ -157,8 +157,8 @@ fabric.properties
 *.sql
 
 # Don't upload plan data but allow readme
-*.md
-*.txt
+#*.md
+#*.txt
 !readme.md
 
 # Scripts

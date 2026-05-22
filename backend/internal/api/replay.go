@@ -256,6 +256,26 @@ func buildReplayEvents(db *sql.DB, sessionID int32, sessionKey string) ([]timedE
 		})
 	}
 
+	travel, err := repo.ListTravelEvents(db, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range travel {
+		from := ""
+		if r.FromSystem != nil {
+			from = *r.FromSystem
+		}
+		events = append(events, timedEvent{
+			originalTs: r.Timestamp,
+			ev: core.Event{
+				Type:      core.EventNav,
+				SessionID: sessionKey,
+				Timestamp: r.Timestamp,
+				Nav:       &core.NavPayload{From: from, To: r.ToSystem},
+			},
+		})
+	}
+
 	sort.Slice(events, func(i, j int) bool {
 		return events[i].originalTs.Before(events[j].originalTs)
 	})

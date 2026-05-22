@@ -42,6 +42,7 @@ export class App implements OnInit, OnDestroy {
 
   protected readonly navItems: NavItem[] = [
     { label: 'Live', icon: 'pi pi-bolt', route: '/live' },
+    { label: 'Replay', icon: 'pi pi-history', route: '/replay' },
     { label: 'Characters', icon: 'pi pi-users', route: '/characters' },
   ];
 

@@ -25,6 +25,16 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+// envelope is the standard response wrapper for all successful responses.
+type envelope[T any] struct {
+	Data  T   `json:"data"`
+	Count int `json:"count"`
+}
+
+func wrap[T any](data T, count int) envelope[T] {
+	return envelope[T]{Data: data, Count: count}
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 func parseID(c *gin.Context, param string) (int32, bool) {
@@ -48,7 +58,7 @@ func (h *handler) listCharacters(c *gin.Context) {
 		dbErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, rows)
+	c.JSON(http.StatusOK, wrap(rows, len(rows)))
 }
 
 func (h *handler) getCharacter(c *gin.Context) {
@@ -65,7 +75,7 @@ func (h *handler) getCharacter(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	c.JSON(http.StatusOK, row)
+	c.JSON(http.StatusOK, wrap(row, 1))
 }
 
 func (h *handler) deleteCharacter(c *gin.Context) {
@@ -85,23 +95,23 @@ func (h *handler) listCharacterSessions(c *gin.Context) {
 	if !ok {
 		return
 	}
-	rows, err := repo.ListSessions(h.db, id)
+	rows, err := repo.ListSessionsWithCount(h.db, id)
 	if err != nil {
 		dbErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, rows)
+	c.JSON(http.StatusOK, wrap(rows, len(rows)))
 }
 
 // ── sessions ──────────────────────────────────────────────────────────────────
 
 func (h *handler) listSessions(c *gin.Context) {
-	rows, err := repo.ListSessions(h.db, 0)
+	rows, err := repo.ListSessionsWithCount(h.db, 0)
 	if err != nil {
 		dbErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, rows)
+	c.JSON(http.StatusOK, wrap(rows, len(rows)))
 }
 
 func (h *handler) getSession(c *gin.Context) {
@@ -118,7 +128,7 @@ func (h *handler) getSession(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	c.JSON(http.StatusOK, row)
+	c.JSON(http.StatusOK, wrap(row, 1))
 }
 
 func (h *handler) deleteSession(c *gin.Context) {
@@ -145,7 +155,7 @@ func (h *handler) listCombat(c *gin.Context) {
 		dbErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, rows)
+	c.JSON(http.StatusOK, wrap(rows, len(rows)))
 }
 
 func (h *handler) listKills(c *gin.Context) {
@@ -158,7 +168,7 @@ func (h *handler) listKills(c *gin.Context) {
 		dbErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, rows)
+	c.JSON(http.StatusOK, wrap(rows, len(rows)))
 }
 
 func (h *handler) listMining(c *gin.Context) {
@@ -171,7 +181,7 @@ func (h *handler) listMining(c *gin.Context) {
 		dbErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, rows)
+	c.JSON(http.StatusOK, wrap(rows, len(rows)))
 }
 
 func (h *handler) listTravel(c *gin.Context) {
@@ -184,7 +194,7 @@ func (h *handler) listTravel(c *gin.Context) {
 		dbErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, rows)
+	c.JSON(http.StatusOK, wrap(rows, len(rows)))
 }
 
 func (h *handler) listCap(c *gin.Context) {
@@ -197,7 +207,7 @@ func (h *handler) listCap(c *gin.Context) {
 		dbErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, rows)
+	c.JSON(http.StatusOK, wrap(rows, len(rows)))
 }
 
 func (h *handler) listReload(c *gin.Context) {
@@ -210,7 +220,7 @@ func (h *handler) listReload(c *gin.Context) {
 		dbErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, rows)
+	c.JSON(http.StatusOK, wrap(rows, len(rows)))
 }
 
 // ── websocket ─────────────────────────────────────────────────────────────────

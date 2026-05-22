@@ -1,0 +1,238 @@
+<p-card>
+  <ng-template #header>
+    <div class="card-header">
+      <div class="char-identity">
+        <span class="char-name">{{ state().characterName }}</span>
+        @if (state().sessionDbId) {
+          <a [routerLink]="['/sessions', state().sessionDbId]" class="session-link">
+            <i class="pi pi-external-link"></i> Session
+          </a>
+        }
+      </div>
+      @if (state().capAlert) {
+        <div class="cap-alert">
+          <i class="pi pi-bolt"></i> Cap Starved: {{ state().capAlertModule }}
+        </div>
+      }
+    </div>
+  </ng-template>
+
+  <!-- Activity Chart -->
+  <div class="chart-section">
+    <div class="chart-header">
+      <span class="window-label">{{ chartWindowMinutes() }} min window</span>
+      <p-slider
+        [(ngModel)]="chartWindowValue"
+        [min]="1" [max]="30" [step]="1"
+        styleClass="window-slider"
+      />
+    </div>
+    @if (windowedBuckets().length > 0) {
+      <div class="chart-wrap">
+        <canvas baseChart
+          type="line"
+          [data]="displayedChartData()"
+          [options]="lineChartOptions"
+        ></canvas>
+      </div>
+    } @else {
+      <div class="empty-chart">No activity data yet</div>
+    }
+  </div>
+
+  <!-- Stats Row 1: Combat (always visible) -->
+  <div class="stats-row">
+    <span class="stat-indicator combat" title="Combat"><i class="pi pi-shield"></i></span>
+    <div class="mini-stat">
+      <span class="mini-label">Avg Out DPS</span>
+      <span class="mini-value out">{{ avgDpsFor() | number }}</span>
+    </div>
+    <div class="mini-stat">
+      <span class="mini-label">Avg In DPS</span>
+      <span class="mini-value in">{{ avgInDpsFor() | number }}</span>
+    </div>
+    <div class="mini-stat">
+      <span class="mini-label">Bounties</span>
+      <span class="mini-value">{{ state().killFeed.length }}</span>
+    </div>
+    <div class="mini-stat">
+      <span class="mini-label">Session ISK</span>
+      <span class="mini-value isk">{{ state().totalBountyISK | number }}</span>
+    </div>
+    <div class="mini-stat">
+      <span class="mini-label">ISK / hr</span>
+      <span class="mini-value isk">{{ iskPerHourFor() | number }}</span>
+    </div>
+  </div>
+
+  <!-- Stats Row 2: Mining -->
+  <div class="stats-row">
+    <span class="stat-indicator mining" title="Mining"><i class="pi pi-circle-fill"></i></span>
+    <div class="mini-stat">
+      <span class="mini-label">Mining / min</span>
+      <span class="mini-value">{{ miningRateFor() | number }}</span>
+    </div>
+    <div class="mini-stat">
+      <span class="mini-label">Total Mined</span>
+      <span class="mini-value">{{ state().totalMined | number }}</span>
+    </div>
+    <div class="mini-stat">
+      <span class="mini-label">Residue Lost</span>
+      <span class="mini-value residue">{{ residueLostFor() | number }}</span>
+    </div>
+    <div class="mini-stat">
+      <span class="mini-label">Criticals</span>
+      <span class="mini-value crit">{{ criticalCountFor() | number }}</span>
+    </div>
+    <div class="mini-stat">
+      <span class="mini-label">Crits / hr</span>
+      <span class="mini-value crit">{{ critsPerHourFor() | number }}</span>
+    </div>
+  </div>
+
+  <!-- Event Feed Accordion -->
+  <p-accordion
+    [(value)]="accordionValue"
+    [multiple]="true"
+    styleClass="event-accordion"
+  >
+    <p-accordionpanel value="events">
+      <p-accordionheader>Events</p-accordionheader>
+      <p-accordioncontent>
+        <p-tabs
+          [value]="feedTab()"
+          (valueChange)="feedTab.set($event?.toString() ?? 'all')"
+          styleClass="feed-tabs"
+        >
+          <p-tablist>
+            <p-tab value="all">All</p-tab>
+            <p-tab value="combat">Combat</p-tab>
+            <p-tab value="bounties">Bounties</p-tab>
+            <p-tab value="mining">Mining</p-tab>
+            <p-tab value="nav">Nav</p-tab>
+          </p-tablist>
+          <p-tabpanels>
+
+            <!-- All -->
+            <p-tabpanel value="all">
+              @if (allFeed().length === 0) {
+                <div class="empty-feed">No events yet</div>
+              } @else {
+                <div class="feed-scroll">
+                  @for (e of allFeed(); track $index) {
+                    <div class="feed-entry" [class.miss-entry]="e.type === 'combat' && e.miss">
+                      <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
+                      @switch (e.type) {
+                        @case ('combat') {
+                          <p-tag [value]="e.direction!" [severity]="e.direction === 'out' ? 'info' : 'danger'" [icon]="e.direction === 'out' ? 'pi pi-send' : 'pi pi-shield'" />
+                          <span class="feed-main">{{ e.entity }}</span>
+                          <span class="feed-value">{{ e.miss ? '—' : (e.damage! | number) }}</span>
+                        }
+                        @case ('mining') {
+                          @if (e.residue) {
+                            <span class="tag-residue tag-exceptional"><i class="pi pi-cloud"></i> RESIDUE</span>
+                          } @else if (e.critical) {
+                            <p-tag value="CRITICAL" severity="success" icon="pi pi-exclamation-triangle" styleClass="tag-exceptional" />
+                          } @else {
+                            <p-tag value="MINE" severity="warn" icon="pi pi-circle-fill" />
+                          }
+                          <span class="feed-main">{{ e.oreType }}</span>
+                          <span class="feed-value muted">{{ e.amount! | number }} units</span>
+                        }
+                        @case ('nav') {
+                          <p-tag value="JUMP" severity="secondary" icon="pi pi-angle-double-right" />
+                          <span class="feed-main">{{ e.from || '—' }} → {{ e.to }}</span>
+                        }
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </p-tabpanel>
+
+            <!-- Combat -->
+            <p-tabpanel value="combat">
+              @if (state().combatFeed.length === 0) {
+                <div class="empty-feed">No combat events</div>
+              } @else {
+                <div class="feed-scroll">
+                  @for (e of state().combatFeed; track $index) {
+                    <div class="feed-entry" [class.miss-entry]="e.miss">
+                      <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
+                      <p-tag [value]="e.direction" [severity]="e.direction === 'out' ? 'info' : 'danger'" [icon]="e.direction === 'out' ? 'pi pi-send' : 'pi pi-shield'" />
+                      <span class="feed-main">{{ e.entity }}</span>
+                      <span class="feed-value">{{ e.miss ? '—' : (e.damage | number) }}</span>
+                    </div>
+                  }
+                </div>
+              }
+            </p-tabpanel>
+
+            <!-- Bounties -->
+            <p-tabpanel value="bounties">
+              @if (state().killFeed.length === 0) {
+                <div class="empty-feed">No bounties</div>
+              } @else {
+                <div class="feed-scroll">
+                  @for (kill of state().killFeed; track $index) {
+                    <div class="feed-entry kill-entry">
+                      <span class="feed-time mono">{{ kill.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
+                      <p-tag value="KILL" severity="success" icon="pi pi-dollar" />
+                      <span class="feed-main">{{ kill.entity }}</span>
+                      @if (kill.bounty > 0) {
+                        <span class="feed-value muted">{{ kill.bounty | number }} ISK</span>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </p-tabpanel>
+
+            <!-- Mining -->
+            <p-tabpanel value="mining">
+              @if (state().miningFeed.length === 0) {
+                <div class="empty-feed">No mining events</div>
+              } @else {
+                <div class="feed-scroll">
+                  @for (e of state().miningFeed; track $index) {
+                    <div class="feed-entry" [class.residue-entry]="e.residue" [class.critical-entry]="e.critical">
+                      <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
+                      @if (e.residue) {
+                        <span class="tag-residue tag-exceptional"><i class="pi pi-cloud"></i> RESIDUE</span>
+                      } @else if (e.critical) {
+                        <p-tag value="CRITICAL" severity="success" icon="pi pi-exclamation-triangle" styleClass="tag-exceptional" />
+                      } @else {
+                        <p-tag value="MINE" severity="warn" icon="pi pi-circle-fill" />
+                      }
+                      <span class="feed-main">{{ e.oreType }}</span>
+                      <span class="feed-value muted">{{ e.amount | number }} units</span>
+                    </div>
+                  }
+                </div>
+              }
+            </p-tabpanel>
+
+            <!-- Nav -->
+            <p-tabpanel value="nav">
+              @if (state().navFeed.length === 0) {
+                <div class="empty-feed">No jumps</div>
+              } @else {
+                <div class="feed-scroll">
+                  @for (e of state().navFeed; track $index) {
+                    <div class="feed-entry">
+                      <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
+                      <p-tag value="JUMP" severity="secondary" icon="pi pi-angle-double-right" />
+                      <span class="feed-main">{{ e.from || '—' }} → {{ e.to }}</span>
+                    </div>
+                  }
+                </div>
+              }
+            </p-tabpanel>
+
+          </p-tabpanels>
+        </p-tabs>
+      </p-accordioncontent>
+    </p-accordionpanel>
+  </p-accordion>
+
+</p-card>

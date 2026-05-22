@@ -6,4 +6,5 @@ export interface Session {
   StartedAt: string;
   Language: string;
   LastByteOffset: number;
+  EventCount: number;
 }
