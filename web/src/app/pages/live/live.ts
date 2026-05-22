@@ -7,7 +7,7 @@ import {
   OnInit,
   signal,
 } from '@angular/core';
-import { bufferTime, filter, Subject, takeUntil } from 'rxjs';
+import { animationFrames, buffer, filter, Subject, takeUntil } from 'rxjs';
 import { Skeleton } from 'primeng/skeleton';
 import { Button } from 'primeng/button';
 import { CharacterCardComponent } from '../../components/character-card/character-card';
@@ -62,7 +62,7 @@ export class LiveComponent implements OnInit, OnDestroy {
 
     this.eventStream.events$
       .pipe(
-        bufferTime(100),
+        buffer(animationFrames()),
         filter(batch => batch.length > 0),
         takeUntil(this.destroy$),
       )

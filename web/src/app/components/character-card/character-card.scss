@@ -309,6 +309,25 @@
     white-space: nowrap;
   }
 
+  .col-sortable {
+    cursor: pointer;
+    user-select: none;
+
+    &:hover { color: var(--p-text-color); }
+
+    .pi {
+      font-size: 0.6rem;
+      margin-left: 0.25rem;
+      opacity: 0.5;
+    }
+
+    &:has(.pi-sort-amount-down),
+    &:has(.pi-sort-amount-up-alt) {
+      color: var(--p-primary-color);
+      .pi { opacity: 1; }
+    }
+  }
+
   .val-kill { color: #f59e0b; }
   .val-out  { color: #3b82f6; }
   .val-in   { color: #ef4444; }

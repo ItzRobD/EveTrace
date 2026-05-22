@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { bufferTime, filter, Subject, takeUntil } from 'rxjs';
+import { animationFrames, buffer, filter, Subject, takeUntil } from 'rxjs';
 import { Button } from 'primeng/button';
 import { Select } from 'primeng/select';
 import { Skeleton } from 'primeng/skeleton';
@@ -88,8 +88,10 @@ export class ReplayComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.stopStream$.next();
+    const id = this.selectedSessionId();
+    this.clearReplay();
     this.stopStream$.complete();
+    if (id) this.api.cancelReplay(id).subscribe();
   }
 
   protected onSessionChange(id: number | null): void {
@@ -114,7 +116,7 @@ export class ReplayComponent implements OnInit, OnDestroy {
     // Subscribe to event stream for this replay's duration.
     this.eventStream.events$
       .pipe(
-        bufferTime(100),
+        buffer(animationFrames()),
         filter(batch => batch.length > 0),
         takeUntil(this.stopStream$),
       )

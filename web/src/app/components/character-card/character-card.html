@@ -240,9 +240,30 @@
                     <thead>
                       <tr>
                         <th class="col-name">Entity</th>
-                        <th class="col-num">Kills</th>
-                        <th class="col-num">Out Dmg</th>
-                        <th class="col-num">Inc Dmg</th>
+                        <th class="col-num col-sortable" (click)="sortEntities('kills')">
+                          Kills
+                          <i class="pi"
+                            [class.pi-sort-alt]="entitySortCol() !== 'kills'"
+                            [class.pi-sort-amount-down]="entitySortCol() === 'kills' && entitySortDir() === -1"
+                            [class.pi-sort-amount-up-alt]="entitySortCol() === 'kills' && entitySortDir() === 1"
+                          ></i>
+                        </th>
+                        <th class="col-num col-sortable" (click)="sortEntities('dmgOut')">
+                          Out Dmg
+                          <i class="pi"
+                            [class.pi-sort-alt]="entitySortCol() !== 'dmgOut'"
+                            [class.pi-sort-amount-down]="entitySortCol() === 'dmgOut' && entitySortDir() === -1"
+                            [class.pi-sort-amount-up-alt]="entitySortCol() === 'dmgOut' && entitySortDir() === 1"
+                          ></i>
+                        </th>
+                        <th class="col-num col-sortable" (click)="sortEntities('dmgIn')">
+                          Inc Dmg
+                          <i class="pi"
+                            [class.pi-sort-alt]="entitySortCol() !== 'dmgIn'"
+                            [class.pi-sort-amount-down]="entitySortCol() === 'dmgIn' && entitySortDir() === -1"
+                            [class.pi-sort-amount-up-alt]="entitySortCol() === 'dmgIn' && entitySortDir() === 1"
+                          ></i>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>

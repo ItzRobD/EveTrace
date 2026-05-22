@@ -117,11 +117,33 @@ export class CharacterCardComponent {
 
   private readonly _entityStats = computed(() => this.state().entityStats);
 
-  protected readonly entityRows = computed(() =>
-    Object.values(this._entityStats()).sort(
-      (a, b) => (b.kills * 100_000 + b.dmgOut + b.dmgIn) - (a.kills * 100_000 + a.dmgOut + a.dmgIn),
-    ),
-  );
+  protected readonly entitySortCol = signal<'score' | 'kills' | 'dmgOut' | 'dmgIn'>('score');
+  protected readonly entitySortDir = signal<1 | -1>(-1);
+
+  protected sortEntities(col: 'kills' | 'dmgOut' | 'dmgIn'): void {
+    if (this.entitySortCol() === col) {
+      this.entitySortDir.update(d => d === 1 ? -1 : 1);
+    } else {
+      this.entitySortCol.set(col);
+      this.entitySortDir.set(-1);
+    }
+  }
+
+  protected readonly entityRows = computed(() => {
+    const col = this.entitySortCol();
+    const dir = this.entitySortDir();
+    return Object.values(this._entityStats()).sort((a, b) => {
+      const av = col === 'score' ? a.kills * 100_000 + a.dmgOut + a.dmgIn
+               : col === 'kills' ? a.kills
+               : col === 'dmgOut' ? a.dmgOut
+               : a.dmgIn;
+      const bv = col === 'score' ? b.kills * 100_000 + b.dmgOut + b.dmgIn
+               : col === 'kills' ? b.kills
+               : col === 'dmgOut' ? b.dmgOut
+               : b.dmgIn;
+      return (bv - av) * dir;
+    });
+  });
 
   private static readonly MARKER_LABELS = new Set(['Kill', 'Cap Starved', 'Hold Full', 'Critical']);
 

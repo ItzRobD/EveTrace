@@ -5,9 +5,9 @@ export const DPS_BUCKET_MS = 5_000;
 export const DPS_WINDOW_MS = 1_800_000; // 30 min max storage; display window is user-controlled
 export const MINING_WINDOW_MS = 60_000;
 export const ISK_WINDOW_MS = 3_600_000;
-export const FEED_WINDOW_MS = 10 * 60 * 1_000; // 10-min rolling feed history
 export const MAX_BOUNTY_HISTORY = 500;
 export const MAX_CRITICAL_HISTORY = 720; // 1 hr at 5-sec buckets
+export const MAX_FEED_ENTRIES = 500;
 export const CAP_ALERT_MS = 30_000;
 
 export interface CombatFeedEntry {
@@ -227,11 +227,20 @@ export function eventSignature(event: LiveEvent): string {
   return `${event.SessionID}|${event.Timestamp}|${event.Type}|${payload}`;
 }
 
+// Append a new (always-latest) bucket and trim expired ones from the front.
+// Avoids a full sort — buckets stay sorted because events arrive in order.
+function appendBucket(buckets: DpsBucket[], newBucket: DpsBucket, cutoff: number): DpsBucket[] {
+  const trimStart = buckets.findIndex(b => b.time >= cutoff);
+  const trimmed = trimStart < 0 ? [] : trimStart === 0 ? buckets : buckets.slice(trimStart);
+  return [...trimmed, newBucket];
+}
+
 export function applyEvent(
   existing: CharacterLiveState,
   event: LiveEvent,
 ): CharacterLiveState {
   const updated: CharacterLiveState = { ...existing };
+  const eventMs = Date.parse(event.Timestamp);
 
   if (event.Type === 'combat' && event.Combat) {
     const entry: CombatFeedEntry = {
@@ -241,59 +250,47 @@ export function applyEvent(
       entity: event.Combat.Entity,
       miss: event.Combat.Miss,
     };
-    const combatCutoff = new Date(event.Timestamp).getTime() - FEED_WINDOW_MS;
-    updated.combatFeed = [entry, ...existing.combatFeed]
-      .filter(e => new Date(e.timestamp).getTime() >= combatCutoff);
+    updated.combatFeed = [entry, ...existing.combatFeed.slice(0, MAX_FEED_ENTRIES - 1)];
 
     if (!event.Combat.Miss && event.Combat.Entity) {
       const entityName = event.Combat.Entity;
       const prev = existing.entityStats[entityName] ?? { name: entityName, kills: 0, dmgOut: 0, dmgIn: 0 };
       const isOut = event.Combat.Direction === 'out';
+      const damage = event.Combat.Damage;
       updated.entityStats = {
         ...existing.entityStats,
         [entityName]: {
-          ...prev,
-          dmgOut: isOut ? prev.dmgOut + event.Combat.Damage : prev.dmgOut,
-          dmgIn: isOut ? prev.dmgIn : prev.dmgIn + event.Combat.Damage,
+          name: prev.name, kills: prev.kills,
+          dmgOut: isOut ? prev.dmgOut + damage : prev.dmgOut,
+          dmgIn: isOut ? prev.dmgIn : prev.dmgIn + damage,
         },
       };
     }
 
     if (!event.Combat.Miss) {
-      const bucketTime =
-        Math.floor(new Date(event.Timestamp).getTime() / DPS_BUCKET_MS) * DPS_BUCKET_MS;
-      const latestTime = Math.max(bucketTime, ...existing.dpsBuckets.map(b => b.time));
-      const cutoff = latestTime - DPS_WINDOW_MS;
+      const bucketTime = Math.floor(eventMs / DPS_BUCKET_MS) * DPS_BUCKET_MS;
       const isOut = event.Combat.Direction === 'out';
+      const damage = event.Combat.Damage;
       const prevBucket = existing.dpsBuckets.find(b => b.time === bucketTime);
-      let buckets: DpsBucket[] = prevBucket
-        ? existing.dpsBuckets.map(b => {
-            if (b.time !== bucketTime) return b;
-            return isOut
-              ? { ...b, out: b.out + event.Combat!.Damage }
-              : { ...b, in: b.in + event.Combat!.Damage };
-          })
-        : [
-            ...existing.dpsBuckets,
-            {
-              time: bucketTime,
-              out: isOut ? event.Combat.Damage : 0,
-              in: isOut ? 0 : event.Combat.Damage,
-              mining: 0,
-              residue: 0,
-            },
-          ];
-      buckets = buckets.filter(b => b.time >= cutoff).sort((a, b) => a.time - b.time);
-      updated.dpsBuckets = buckets;
+      if (prevBucket) {
+        // Update existing bucket — array stays sorted, no trim needed
+        updated.dpsBuckets = existing.dpsBuckets.map(b =>
+          b.time !== bucketTime ? b : isOut ? { ...b, out: b.out + damage } : { ...b, in: b.in + damage }
+        );
+      } else {
+        const lastTime = existing.dpsBuckets.at(-1)?.time ?? bucketTime;
+        const cutoff = Math.max(bucketTime, lastTime) - DPS_WINDOW_MS;
+        const newBucket: DpsBucket = { time: bucketTime, out: isOut ? damage : 0, in: isOut ? 0 : damage, mining: 0, residue: 0 };
+        updated.dpsBuckets = appendBucket(existing.dpsBuckets, newBucket, cutoff);
+      }
     }
   }
 
   if (event.Type === 'kill' && event.Kill) {
-    const killCutoff = new Date(event.Timestamp).getTime() - FEED_WINDOW_MS;
     updated.killFeed = [
       { timestamp: event.Timestamp, entity: event.Kill.Entity, bounty: event.Kill.BountyISK },
-      ...existing.killFeed,
-    ].filter(e => new Date(e.timestamp).getTime() >= killCutoff);
+      ...existing.killFeed.slice(0, MAX_FEED_ENTRIES - 1),
+    ];
     updated.totalBountyISK = existing.totalBountyISK + event.Kill.BountyISK;
 
     if (event.Kill.Entity) {
@@ -308,7 +305,7 @@ export function applyEvent(
       ...existing.bountyHistory,
       { timestamp: event.Timestamp, isk: event.Kill.BountyISK },
     ].slice(-MAX_BOUNTY_HISTORY);
-    const killBucket = Math.floor(new Date(event.Timestamp).getTime() / DPS_BUCKET_MS) * DPS_BUCKET_MS;
+    const killBucket = Math.floor(eventMs / DPS_BUCKET_MS) * DPS_BUCKET_MS;
     if (!existing.killMarkers.includes(killBucket)) {
       updated.killMarkers = [...existing.killMarkers, killBucket].slice(-50);
     }
@@ -323,28 +320,20 @@ export function applyEvent(
       residue: false,
       critical: event.Mining.Critical,
     };
-    const miningCutoff = new Date(event.Timestamp).getTime() - FEED_WINDOW_MS;
-    updated.miningFeed = [entry, ...existing.miningFeed]
-      .filter(e => new Date(e.timestamp).getTime() >= miningCutoff);
+    updated.miningFeed = [entry, ...existing.miningFeed.slice(0, MAX_FEED_ENTRIES - 1)];
     updated.totalMined = existing.totalMined + event.Mining.Amount;
 
-    const mBucketTime =
-      Math.floor(new Date(event.Timestamp).getTime() / DPS_BUCKET_MS) * DPS_BUCKET_MS;
-    const latestTime = Math.max(mBucketTime, ...existing.dpsBuckets.map(b => b.time));
-    const cutoff = latestTime - DPS_WINDOW_MS;
+    const mBucketTime = Math.floor(eventMs / DPS_BUCKET_MS) * DPS_BUCKET_MS;
     const prevMBucket = existing.dpsBuckets.find(b => b.time === mBucketTime);
-    const baseBuckets = updated.dpsBuckets.length ? updated.dpsBuckets : existing.dpsBuckets;
-    let mBuckets: DpsBucket[] = prevMBucket
-      ? baseBuckets.map(b => {
-          if (b.time !== mBucketTime) return b;
-          return { ...b, mining: b.mining + event.Mining!.Amount };
-        })
-      : [
-          ...baseBuckets,
-          { time: mBucketTime, out: 0, in: 0, mining: event.Mining.Amount, residue: 0 },
-        ];
-    mBuckets = mBuckets.filter(b => b.time >= cutoff).sort((a, b) => a.time - b.time);
-    updated.dpsBuckets = mBuckets;
+    if (prevMBucket) {
+      updated.dpsBuckets = existing.dpsBuckets.map(b =>
+        b.time !== mBucketTime ? b : { ...b, mining: b.mining + event.Mining!.Amount }
+      );
+    } else {
+      const lastTime = existing.dpsBuckets.at(-1)?.time ?? mBucketTime;
+      const cutoff = Math.max(mBucketTime, lastTime) - DPS_WINDOW_MS;
+      updated.dpsBuckets = appendBucket(existing.dpsBuckets, { time: mBucketTime, out: 0, in: 0, mining: event.Mining.Amount, residue: 0 }, cutoff);
+    }
 
     if (event.Mining.Critical) {
       updated.totalCriticals = existing.totalCriticals + 1;
@@ -352,7 +341,7 @@ export function applyEvent(
         ...existing.criticalHistory,
         { timestamp: event.Timestamp },
       ].slice(-MAX_CRITICAL_HISTORY);
-      const critBucket = Math.floor(new Date(event.Timestamp).getTime() / DPS_BUCKET_MS) * DPS_BUCKET_MS;
+      const critBucket = Math.floor(eventMs / DPS_BUCKET_MS) * DPS_BUCKET_MS;
       if (!existing.criticalMarkers.includes(critBucket)) {
         updated.criticalMarkers = [...existing.criticalMarkers, critBucket].slice(-50);
       }
@@ -361,54 +350,40 @@ export function applyEvent(
 
   // Residue loss — ore depleted from asteroid as inefficiency
   if (event.Type === 'mining' && event.Mining && event.Mining.Residue) {
-    const entry: MiningFeedEntry = {
-      timestamp: event.Timestamp,
-      oreType: 'Residue',
-      amount: event.Mining.Amount,
-      residue: true,
-      critical: false,
-    };
-    const residueCutoff = new Date(event.Timestamp).getTime() - FEED_WINDOW_MS;
-    updated.miningFeed = [entry, ...existing.miningFeed]
-      .filter(e => new Date(e.timestamp).getTime() >= residueCutoff);
-
+    updated.miningFeed = [
+      { timestamp: event.Timestamp, oreType: 'Residue', amount: event.Mining.Amount, residue: true, critical: false },
+      ...existing.miningFeed.slice(0, MAX_FEED_ENTRIES - 1),
+    ];
     updated.totalResidue = existing.totalResidue + event.Mining.Amount;
 
-    const rBucketTime =
-      Math.floor(new Date(event.Timestamp).getTime() / DPS_BUCKET_MS) * DPS_BUCKET_MS;
-    const baseBuckets = updated.dpsBuckets.length ? updated.dpsBuckets : existing.dpsBuckets;
-    const latestTime = Math.max(rBucketTime, ...baseBuckets.map(b => b.time));
-    const cutoff = latestTime - DPS_WINDOW_MS;
-    const prevRBucket = baseBuckets.find(b => b.time === rBucketTime);
-    let rBuckets: DpsBucket[] = prevRBucket
-      ? baseBuckets.map(b => {
-          if (b.time !== rBucketTime) return b;
-          return { ...b, residue: b.residue + event.Mining!.Amount };
-        })
-      : [
-          ...baseBuckets,
-          { time: rBucketTime, out: 0, in: 0, mining: 0, residue: event.Mining.Amount },
-        ];
-    rBuckets = rBuckets.filter(b => b.time >= cutoff).sort((a, b) => a.time - b.time);
-    updated.dpsBuckets = rBuckets;
+    const rBucketTime = Math.floor(eventMs / DPS_BUCKET_MS) * DPS_BUCKET_MS;
+    const prevRBucket = existing.dpsBuckets.find(b => b.time === rBucketTime);
+    if (prevRBucket) {
+      updated.dpsBuckets = existing.dpsBuckets.map(b =>
+        b.time !== rBucketTime ? b : { ...b, residue: b.residue + event.Mining!.Amount }
+      );
+    } else {
+      const lastTime = existing.dpsBuckets.at(-1)?.time ?? rBucketTime;
+      const cutoff = Math.max(rBucketTime, lastTime) - DPS_WINDOW_MS;
+      updated.dpsBuckets = appendBucket(existing.dpsBuckets, { time: rBucketTime, out: 0, in: 0, mining: 0, residue: event.Mining.Amount }, cutoff);
+    }
   }
 
   if (event.Type === 'nav' && event.Nav) {
-    const navCutoff = new Date(event.Timestamp).getTime() - FEED_WINDOW_MS;
     updated.jumpHistory = [
       ...existing.jumpHistory,
       { timestamp: event.Timestamp },
     ].slice(-MAX_BOUNTY_HISTORY);
     updated.navFeed = [
       { timestamp: event.Timestamp, from: event.Nav.From, to: event.Nav.To },
-      ...existing.navFeed,
-    ].filter(e => new Date(e.timestamp).getTime() >= navCutoff);
+      ...existing.navFeed.slice(0, MAX_FEED_ENTRIES - 1),
+    ];
   }
 
   if (event.Type === 'cap_starvation' && event.CapStarvation) {
     updated.capAlert = true;
     updated.capAlertModule = event.CapStarvation.Module;
-    const capBucket = Math.floor(new Date(event.Timestamp).getTime() / DPS_BUCKET_MS) * DPS_BUCKET_MS;
+    const capBucket = Math.floor(eventMs / DPS_BUCKET_MS) * DPS_BUCKET_MS;
     if (!existing.capMarkers.includes(capBucket)) {
       updated.capMarkers = [...existing.capMarkers, capBucket].slice(-50);
     }

@@ -1,7 +1,7 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
 import { EMPTY, Observable, Subject, defer } from 'rxjs';
-import { catchError, repeat, shareReplay, takeUntil } from 'rxjs';
+import { catchError, repeat, share, takeUntil } from 'rxjs';
 import { filter, map } from 'rxjs';
 import {
   LiveEvent,
@@ -46,7 +46,7 @@ export class EventStreamService implements OnDestroy {
   }).pipe(
     repeat({ delay: RECONNECT_DELAY_MS }),
     takeUntil(this.destroy$),
-    shareReplay({ bufferSize: 1, refCount: true }),
+    share(),
   );
 
   readonly combat$: Observable<LiveCombatPayload & { SessionID: string; Timestamp: string }> =
