@@ -12,6 +12,7 @@ import { ChartOptions } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
 import { Accordion, AccordionContent, AccordionHeader, AccordionPanel } from 'primeng/accordion';
 import { Card } from 'primeng/card';
+import { Button } from 'primeng/button';
 import { Slider } from 'primeng/slider';
 import { Tab, TabList, TabPanel, TabPanels, Tabs } from 'primeng/tabs';
 import { Tag } from 'primeng/tag';
@@ -50,6 +51,7 @@ interface FeedAllEntry {
     AccordionHeader,
     AccordionPanel,
     BaseChartDirective,
+    Button,
     Card,
     DatePipe,
     DecimalPipe,
@@ -95,6 +97,8 @@ export class CharacterCardComponent {
 
   protected get chartWindowValue(): number { return this.chartWindowMinutes(); }
   protected set chartWindowValue(v: number) { this.chartWindowMinutes.set(v); }
+
+  protected resetChartWindow(): void { this.chartWindowMinutes.set(2); }
 
   protected readonly allFeed = computed(() => {
     const entries: FeedAllEntry[] = [

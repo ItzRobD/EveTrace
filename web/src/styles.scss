@@ -1,6 +1,296 @@
-html,
-body {
+// ─── EVE Online Photon UI – Global Styles ────────────────────────────────────
+
+:root {
+  // ── EVE surface palette ──────────────────────────────────────────────────
+  --p-surface-0:    #0b0e11;
+  --p-surface-50:   #0f1215;
+  --p-surface-100:  #131619;
+  --p-surface-200:  #171b1f;
+  --p-surface-300:  #1c2024;
+  --p-surface-400:  #21262c;
+  --p-surface-500:  #282e36;
+  --p-surface-600:  #353c45;
+  --p-surface-700:  #454d57;
+  --p-surface-800:  #5c6470;
+  --p-surface-900:  #7a8290;
+  --p-surface-950:  #9da4ac;
+
+  // ── EVE teal primary ─────────────────────────────────────────────────────
+  --p-primary-50:   rgba(77,168,192,0.06);
+  --p-primary-100:  rgba(77,168,192,0.12);
+  --p-primary-200:  #1a3a45;
+  --p-primary-300:  #1e4d5e;
+  --p-primary-400:  #46afc9;
+  --p-primary-500:  #4da8c0;
+  --p-primary-600:  #3d95ae;
+  --p-primary-700:  #2d7f96;
+  --p-primary-800:  #1d697e;
+  --p-primary-900:  #0e5366;
+  --p-primary-950:  #07374a;
+  --p-primary-color:          #4da8c0;
+  --p-primary-contrast-color: #ffffff;
+  --p-primary-hover-color:    #5bbad4;
+  --p-primary-active-color:   #3d95ae;
+
+  // ── EVE danger / red ─────────────────────────────────────────────────────
+  --p-red-300: #d46060;
+  --p-red-400: #c45050;
+  --p-red-500: #b54242;
+  --p-red-600: #9c3838;
+  --eve-danger:       #b54242;
+  --eve-danger-hover: #d46060;
+  --eve-danger-bg:    rgba(181, 66, 66, 0.15);
+  --eve-danger-bg-hover: rgba(181, 66, 66, 0.25);
+
+  // ── EVE warning / amber ──────────────────────────────────────────────────
+  --p-amber-300: #d8a050;
+  --p-amber-400: #d0943e;
+  --p-amber-500: #c8893b;
+  --p-amber-600: #b07832;
+  --eve-warn:       #c8893b;
+  --eve-warn-hover: #d8a050;
+  --eve-warn-bg:    rgba(200, 137, 59, 0.15);
+
+  // ── EVE success / green ───────────────────────────────────────────────────
+  --p-green-300: #6ab880;
+  --p-green-400: #5aaa70;
+  --p-green-500: #4a9060;
+  --p-green-600: #3a7850;
+  --eve-success:    #4a9060;
+  --eve-success-bg: rgba(74, 144, 96, 0.15);
+
+  // ── Neutral / gray scale ─────────────────────────────────────────────────
+  // Surface variables already act as the neutral scale.
+  // Alias for PrimeNG secondary severity:
+  --eve-secondary:    #5c6470;
+  --eve-secondary-bg: rgba(40, 46, 54, 0.5);
+
+  // ── Text ─────────────────────────────────────────────────────────────────
+  --p-text-color:         #c2c6ca;
+  --p-text-muted-color:   #6e7680;
+  --p-text-hover-color:   #d0d4d8;
+
+  // ── Borders ──────────────────────────────────────────────────────────────
+  --p-surface-border:       #232830;
+  --p-content-border-color: #232830;
+
+  // ── Corner radius – square/angular like EVE panels ───────────────────────
+  --p-border-radius-none: 0px;
+  --p-border-radius-xs:   1px;
+  --p-border-radius-sm:   1px;
+  --p-border-radius-md:   2px;
+  --p-border-radius-lg:   2px;
+  --p-border-radius-xl:   3px;
+  --p-border-radius-2xl:  3px;
+  --p-border-radius-3xl:  4px;
+  --p-border-radius-full: 2px;
+
+  // ── Font ─────────────────────────────────────────────────────────────────
+  --p-font-family: 'Exo 2', 'Segoe UI', system-ui, sans-serif;
+
+  // ── Cut-corner size ───────────────────────────────────────────────────────
+  --eve-cut: 8px;
+}
+
+// ─── Global reset & base ─────────────────────────────────────────────────────
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
   height: 100%;
   margin: 0;
-  font-family: var(--p-font-family), sans-serif;
+  font-family: 'Exo 2', 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  background: #080b0e;
+  color: var(--p-text-color);
+  -webkit-font-smoothing: antialiased;
+}
+
+// ─── Scrollbars ───────────────────────────────────────────────────────────────
+::-webkit-scrollbar        { width: 4px; height: 4px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  {
+  background: #282e36;
+  border-radius: 2px;
+  &:hover { background: #353c45; }
+}
+* { scrollbar-width: thin; scrollbar-color: #282e36 transparent; }
+
+// ─── Cut-corner utility ───────────────────────────────────────────────────────
+// Bottom-right 45° clip matching EVE Photon UI button shape.
+@mixin eve-cut-corner($size: var(--eve-cut)) {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - #{$size}), calc(100% - #{$size}) 100%, 0 100%);
+}
+
+// ─── PrimeNG global component overrides ──────────────────────────────────────
+
+// Card
+.p-card {
+  background: var(--p-surface-100) !important;
+  border: 1px solid var(--p-surface-border) !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+
+  .p-card-body   { padding: 0.75rem; }
+  .p-card-header { padding: 0; }
+}
+
+// Accordion
+.p-accordion {
+  .p-accordionpanel {
+    border: none;
+    &:not(:last-child) { border-bottom: 1px solid var(--p-surface-border); }
+  }
+  .p-accordionheader {
+    background: transparent !important;
+    padding: 0.5rem 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--p-text-muted-color) !important;
+    border-radius: 1px !important;
+    &:hover { background: var(--p-surface-200) !important; }
+  }
+  .p-accordioncontent-content {
+    padding: 0.5rem 0;
+    background: transparent;
+  }
+}
+
+// Tabs
+.p-tabs {
+  .p-tablist {
+    background: transparent !important;
+    border-bottom: 1px solid var(--p-surface-border) !important;
+    gap: 0;
+  }
+  .p-tab {
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.07em !important;
+    padding: 0.35rem 0.75rem !important;
+    color: var(--p-text-muted-color) !important;
+    border-radius: 1px 1px 0 0 !important;
+    background: transparent !important;
+    border: none !important;
+    &:hover {
+      color: var(--p-text-color) !important;
+      background: var(--p-surface-200) !important;
+    }
+    &[aria-selected="true"] {
+      color: var(--p-primary-color) !important;
+      border-bottom: 2px solid var(--p-primary-color) !important;
+    }
+  }
+  .p-tabpanels { background: transparent !important; padding: 0 !important; }
+  .p-tabpanel  { padding: 0.5rem 0 0 !important; }
+}
+
+// Select / Dropdown
+.p-select,
+.p-select-overlay {
+  background: var(--p-surface-300) !important;
+  border-color: var(--p-surface-border) !important;
+  border-radius: 2px !important;
+  font-size: 0.85rem !important;
+}
+.p-select-option:hover,
+.p-select-option.p-select-option-selected { background: var(--p-surface-400) !important; }
+
+// Button – base
+.p-button {
+  border-radius: 2px !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  padding: 0.38rem 0.9rem !important;
+}
+
+// Severity color corrections
+.p-button-danger:not([data-p-severity]) {
+  &:hover, &:focus {
+    color: var(--eve-danger-hover) !important;
+  }
+}
+
+// Tag – tighter, EVE severity palette
+.p-tag {
+  border-radius: 1px !important;
+  font-size: 0.65rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.07em !important;
+  padding: 0.15rem 0.4rem !important;
+
+  &.p-tag-warn    { background: var(--eve-warn-bg)    !important; color: var(--eve-warn)    !important; }
+  &.p-tag-danger  { background: var(--eve-danger-bg)  !important; color: var(--eve-danger-hover) !important; }
+  &.p-tag-success { background: var(--eve-success-bg) !important; color: var(--eve-success) !important; }
+  &.p-tag-secondary { background: var(--eve-secondary-bg) !important; color: var(--eve-secondary) !important; }
+}
+
+// Slider
+.p-slider {
+  --p-slider-track-background: var(--p-surface-600);
+  --p-slider-handle-width: 12px;
+  --p-slider-handle-height: 12px;
+  --p-slider-handle-border-radius: 50%;
+  --p-slider-handle-background: var(--p-primary-color);
+  --p-slider-handle-hover-background: var(--p-primary-color);
+  --p-slider-range-background: var(--p-primary-color);
+  .p-slider-handle {
+    box-shadow: 0 0 0 2px var(--p-surface-0), 0 0 0 3px var(--p-primary-color) !important;
+    &::before { display: none; }
+  }
+}
+
+// Skeleton
+.p-skeleton {
+  background: var(--p-surface-300) !important;
+  border-radius: 2px !important;
+}
+
+// Drawer
+.p-drawer {
+  background: var(--p-surface-100) !important;
+  border-right: 1px solid var(--p-surface-border) !important;
+  border-radius: 0 !important;
+
+  .p-drawer-header {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--p-surface-border);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--p-text-muted-color);
+  }
+}
+
+// Table
+.p-datatable {
+  .p-datatable-thead > tr > th {
+    background: var(--p-surface-200) !important;
+    color: var(--p-text-muted-color) !important;
+    font-size: 0.7rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.07em !important;
+    border-color: var(--p-surface-border) !important;
+    padding: 0.4rem 0.6rem !important;
+  }
+  .p-datatable-tbody > tr {
+    background: transparent !important;
+    border-color: var(--p-surface-border) !important;
+    transition: background 0.1s;
+
+    > td {
+      border-color: var(--p-surface-border) !important;
+      padding: 0.35rem 0.6rem !important;
+      font-size: 0.82rem !important;
+    }
+
+    &:hover > td { background: rgba(77, 168, 192, 0.08) !important; }
+  }
 }
