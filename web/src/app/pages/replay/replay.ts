@@ -15,6 +15,7 @@ import { Skeleton } from 'primeng/skeleton';
 import { CharacterCardComponent } from '../../components/character-card/character-card';
 import { ApiService } from '../../services/api.service';
 import { EventStreamService } from '../../services/event-stream.service';
+import { LiveStateService } from '../../services/live-state.service';
 import { LiveEvent } from '../../models/live-event.model';
 import { Session } from '../../models/session.model';
 import {
@@ -35,6 +36,7 @@ import {
 export class ReplayComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly eventStream = inject(EventStreamService);
+  private readonly liveStateService = inject(LiveStateService);
 
   protected readonly loading = signal(true);
   protected readonly allSessions = signal<Session[]>([]);
@@ -89,9 +91,11 @@ export class ReplayComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     const id = this.selectedSessionId();
+    const wasActive = this.replayActive();
     this.clearReplay();
+    this.liveStateService.setReplayMode(false);
     this.stopStream$.complete();
-    if (id) this.api.cancelReplay(id).subscribe();
+    if (id && wasActive) this.api.cancelReplay(id).subscribe();
   }
 
   protected onSessionChange(id: number | null): void {
@@ -108,6 +112,7 @@ export class ReplayComponent implements OnInit, OnDestroy {
 
     // Always tear down any existing stream + state before starting fresh.
     this.clearReplay();
+    this.liveStateService.setReplayMode(true);
 
     this.replayActive.set(true);
     this.replayInfo.set('');
@@ -126,6 +131,7 @@ export class ReplayComponent implements OnInit, OnDestroy {
       next: res => {
         if (!res.events) {
           this.stopStream$.next();
+          this.liveStateService.setReplayMode(false);
           this.replayActive.set(false);
           this.replayInfo.set('No events found for this session');
           return;
@@ -135,6 +141,7 @@ export class ReplayComponent implements OnInit, OnDestroy {
         this.replayTimer = setTimeout(() => {
           this.replayTimer = null;
           this.stopStream$.next();
+          this.liveStateService.setReplayMode(false);
           this.replayActive.set(false);
           this.replayInfo.set('Replay complete');
         }, ms);
@@ -161,6 +168,7 @@ export class ReplayComponent implements OnInit, OnDestroy {
     const id = this.selectedSessionId();
 
     this.clearReplay();
+    this.liveStateService.setReplayMode(false);
     this.replayActive.set(false);
     this.replayPaused.set(false);
 

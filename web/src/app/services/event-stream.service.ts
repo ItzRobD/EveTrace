@@ -21,6 +21,14 @@ export class EventStreamService implements OnDestroy {
   private readonly destroy$ = new Subject<void>();
   private readonly statusSubject$ = new Subject<ConnectionStatus>();
 
+  constructor() {
+    // Hold a permanent subscription so the WebSocket stays connected regardless
+    // of which page is active. Without this, share() drops to refCount 0 on
+    // navigation, closes the socket, and the backend re-triggers any active
+    // replay when the socket reconnects.
+    this.events$.subscribe();
+  }
+
   readonly status$: Observable<ConnectionStatus> = this.statusSubject$.asObservable();
 
   // defer ensures a fresh WebSocketSubject is created on each subscription

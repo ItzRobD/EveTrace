@@ -19,19 +19,21 @@
   <nav class="sidebar" [class.collapsed]="sidebarCollapsed">
     <div class="sidebar-items">
       @for (item of navItems; track item.route) {
-        <a
-          class="nav-item"
-          [routerLink]="item.route"
-          routerLinkActive="nav-item--active"
-          [pTooltip]="item.label"
-          tooltipPosition="right"
-          [tooltipDisabled]="!sidebarCollapsed"
-        >
-          <i [class]="item.icon"></i>
-          @if (!sidebarCollapsed) {
-            <span class="nav-label">{{ item.label }}</span>
-          }
-        </a>
+        <div class="nav-item-wrap">
+          <a
+            class="nav-item"
+            [routerLink]="item.route"
+            routerLinkActive="nav-item--active"
+            [pTooltip]="item.label"
+            tooltipPosition="right"
+            [tooltipDisabled]="!sidebarCollapsed"
+          >
+            <i [class]="item.icon"></i>
+            @if (!sidebarCollapsed) {
+              <span class="nav-label">{{ item.label }}</span>
+            }
+          </a>
+        </div>
       }
     </div>
 
@@ -52,15 +54,17 @@
   <p-drawer [(visible)]="drawerOpen" position="left" header="EveTrace">
     <nav class="drawer-nav">
       @for (item of navItems; track item.route) {
-        <a
-          class="nav-item"
-          [routerLink]="item.route"
-          routerLinkActive="nav-item--active"
-          (click)="drawerOpen = false"
-        >
-          <i [class]="item.icon"></i>
-          <span>{{ item.label }}</span>
-        </a>
+        <div class="nav-item-wrap">
+          <a
+            class="nav-item"
+            [routerLink]="item.route"
+            routerLinkActive="nav-item--active"
+            (click)="drawerOpen = false"
+          >
+            <i [class]="item.icon"></i>
+            <span>{{ item.label }}</span>
+          </a>
+        </div>
       }
     </nav>
   </p-drawer>

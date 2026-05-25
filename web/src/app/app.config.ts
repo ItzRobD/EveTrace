@@ -4,7 +4,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 import { providePrimeNG } from 'primeng/config';
-import Aura from '@primeuix/themes/aura';
+import { EvePreset } from './eve-theme';
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {
@@ -16,9 +16,10 @@ export const appConfig: ApplicationConfig = {
     provideCharts(withDefaultRegisterables()),
     providePrimeNG({
       theme: {
-        preset: Aura,
+        preset: EvePreset,
         options: {
-          darkModeSelector: '.dark-mode',
+          darkModeSelector: ':root',
+          cssLayer: { name: 'primeng', order: 'tailwind-base, primeng, tailwind-utilities' },
         },
       },
     }),

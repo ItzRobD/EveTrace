@@ -1,16 +1,17 @@
 .page-header {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 
   h2 {
     margin: 0;
-    font-size: 1.5rem;
-    font-weight: 600;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--p-text-muted-color);
   }
 }
 
-.skeleton-wrap {
-  max-width: 700px;
-}
+.skeleton-wrap { max-width: 700px; }
 
 .empty-state {
   display: flex;
@@ -21,21 +22,56 @@
   color: var(--p-text-muted-color);
   text-align: center;
 
-  i { font-size: 3rem; opacity: 0.4; }
-  h3 { margin: 0; font-size: 1.2rem; font-weight: 600; }
-  p { margin: 0; max-width: 30rem; }
+  i  { font-size: 3rem; opacity: 0.35; }
+  h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+  p  { margin: 0; max-width: 30rem; font-size: 0.88rem; }
 }
 
 .char-filter {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+// ─── Character toggle buttons ─────────────────────────────────────────────────
+// Outer wrapper carries the border colour and the larger clip so the diagonal
+// cut edge stays visible (clip-path clips its own element's border/outline).
+// Inner button is inset 1 px so the wrapper background shows as a thin border.
+// Hover turns the wrapper border danger-red via :has().
+.char-toggle-wrap {
+  display: inline-block;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 11px), calc(100% - 11px) 100%, 0 100%);
+  background: var(--p-surface-border);
+  transition: background 0.12s;
+
+  &:has(button:hover) {
+    background: var(--eve-danger) !important;
+  }
+}
+
+::ng-deep .char-toggle-wrap {
+  // p-button host must be block so it fills the wrapper and respects the margin
+  p-button { display: block; }
+
+  .char-toggle-btn {
+    display: block !important;
+    margin: 1px !important;
+    border: none !important;
+    padding: 0.46rem 1.1rem !important;
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%) !important;
+    transition: background 0.12s, color 0.12s !important;
+
+    &:hover {
+      background: var(--eve-danger-bg) !important;
+      color: var(--eve-danger-hover) !important;
+    }
+  }
 }
 
 .char-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
-  gap: 1.5rem;
+  gap: 1.25rem;
   align-items: start;
 }

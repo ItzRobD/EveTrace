@@ -17,12 +17,14 @@
   @if (showFilter()) {
     <div class="char-filter">
       @for (state of allChars(); track state.characterName) {
-        <p-button
-          [label]="state.characterName"
-          [severity]="hiddenChars().has(state.characterName) ? 'secondary' : 'primary'"
-          size="small"
-          (onClick)="toggleChar(state.characterName)"
-        />
+        <div class="char-toggle-wrap">
+          <p-button
+            [label]="state.characterName"
+            [severity]="hiddenChars().has(state.characterName) ? 'secondary' : 'primary'"
+            styleClass="char-toggle-btn"
+            (onClick)="toggleChar(state.characterName)"
+          />
+        </div>
       }
     </div>
   }

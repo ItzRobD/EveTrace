@@ -39,6 +39,9 @@
       <p-tab value="reload">
         <i class="pi pi-refresh"></i> Reload
       </p-tab>
+      <p-tab value="entities">
+        <i class="pi pi-users"></i> Entities
+      </p-tab>
     </p-tablist>
 
     <p-tabpanels>
@@ -278,6 +281,40 @@
           </ng-template>
           <ng-template #emptymessage>
             <tr><td colspan="4" class="empty-cell">No reload events.</td></tr>
+          </ng-template>
+        </p-table>
+      </p-tabpanel>
+
+      <!-- ENTITIES TAB -->
+      <p-tabpanel value="entities" [lazy]="true">
+        <p-table
+          [value]="entityStats()"
+          [rowHover]="true"
+          size="small"
+          [paginator]="true"
+          [rows]="100"
+          [rowsPerPageOptions]="[50, 100, 250]"
+          [showCurrentPageReport]="true"
+          currentPageReportTemplate="{first}–{last} of {totalRecords}"
+        >
+          <ng-template #header>
+            <tr>
+              <th pSortableColumn="name">Entity <p-sortIcon field="name" /></th>
+              <th pSortableColumn="kills" style="text-align:right">Kills <p-sortIcon field="kills" /></th>
+              <th pSortableColumn="dmgOut" style="text-align:right">Out Dmg <p-sortIcon field="dmgOut" /></th>
+              <th pSortableColumn="dmgIn" style="text-align:right">Inc Dmg <p-sortIcon field="dmgIn" /></th>
+            </tr>
+          </ng-template>
+          <ng-template #body let-e>
+            <tr>
+              <td>{{ e.name }}</td>
+              <td style="text-align:right" [class.val-kill]="e.kills > 0">{{ e.kills || '—' }}</td>
+              <td style="text-align:right" [class.val-out]="e.dmgOut > 0">{{ e.dmgOut > 0 ? (e.dmgOut | number) : '—' }}</td>
+              <td style="text-align:right" [class.val-in]="e.dmgIn > 0">{{ e.dmgIn > 0 ? (e.dmgIn | number) : '—' }}</td>
+            </tr>
+          </ng-template>
+          <ng-template #emptymessage>
+            <tr><td colspan="4" class="empty-cell">No entity data.</td></tr>
           </ng-template>
         </p-table>
       </p-tabpanel>

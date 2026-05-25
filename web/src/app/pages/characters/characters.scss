@@ -1,10 +1,13 @@
 .page-header {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 
   h2 {
     margin: 0;
-    font-size: 1.5rem;
-    font-weight: 600;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--p-text-muted-color);
   }
 }
 
@@ -23,17 +26,11 @@
   color: var(--p-text-muted-color);
   text-align: center;
 
-  .empty-icon {
-    font-size: 3rem;
-    opacity: 0.4;
-  }
-
-  p {
-    max-width: 28rem;
-    margin: 0;
-  }
+  .empty-icon { font-size: 3rem; opacity: 0.35; }
+  p           { max-width: 28rem; margin: 0; font-size: 0.88rem; }
 }
 
+// ─── Character accordion header ───────────────────────────────────────────────
 .char-header {
   display: flex;
   align-items: center;
@@ -44,16 +41,15 @@
 
 .char-name {
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
 }
 
-.session-skeleton {
-  padding: 0.5rem 0;
-}
+.session-skeleton { padding: 0.5rem 0; }
 
 .session-key {
   font-family: monospace;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--p-text-muted-color);
 }
 
@@ -67,5 +63,32 @@
   text-align: center;
   color: var(--p-text-muted-color);
   padding: 1.5rem !important;
-  font-style: italic;
+  font-size: 0.82rem;
+}
+
+// ─── Table: row hover teal, action icons highlight on hover ──────────────────
+// Row background is handled globally (styles.scss .p-datatable tbody tr:hover).
+// Here we add per-button highlights within hovered rows.
+::ng-deep .p-datatable-tbody > tr {
+  // Delete button: highlights danger red when row is hovered
+  &:hover .p-button-danger {
+    color: var(--eve-danger-hover) !important;
+  }
+
+  // View/chart button: highlights teal when row is hovered
+  &:hover .p-button:not(.p-button-danger) {
+    color: var(--p-primary-hover-color) !important;
+  }
+}
+
+// ─── Character accordion delete button ───────────────────────────────────────
+// Normally dimmed so it doesn't distract; brightens red on hover.
+::ng-deep .char-header .p-button-danger {
+  opacity: 0.4;
+  transition: opacity 0.12s, color 0.12s;
+
+  &:hover {
+    opacity: 1;
+    color: var(--eve-danger-hover) !important;
+  }
 }

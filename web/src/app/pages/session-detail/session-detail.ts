@@ -150,6 +150,26 @@ export class SessionDetailComponent implements OnInit {
     };
   });
 
+  protected readonly entityStats = computed(() => {
+    const stats = new Map<string, { name: string; kills: number; dmgOut: number; dmgIn: number }>();
+    for (const e of this.combatEvents() ?? []) {
+      if (e.IsMiss || !e.Entity) continue;
+      const prev = stats.get(e.Entity) ?? { name: e.Entity, kills: 0, dmgOut: 0, dmgIn: 0 };
+      if (e.Direction === 'out') prev.dmgOut += e.Damage;
+      else prev.dmgIn += e.Damage;
+      stats.set(e.Entity, prev);
+    }
+    for (const k of this.killEvents() ?? []) {
+      if (!k.Entity) continue;
+      const prev = stats.get(k.Entity) ?? { name: k.Entity, kills: 0, dmgOut: 0, dmgIn: 0 };
+      prev.kills += 1;
+      stats.set(k.Entity, prev);
+    }
+    return [...stats.values()].sort(
+      (a, b) => (b.kills * 100_000 + b.dmgOut + b.dmgIn) - (a.kills * 100_000 + a.dmgOut + a.dmgIn),
+    );
+  });
+
   protected readonly filteredCombatEvents = computed(() => {
     let events = this.combatEvents() ?? [];
     const dir = this.directionFilter();
