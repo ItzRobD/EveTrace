@@ -119,7 +119,7 @@ export class ReplayComponent implements OnInit, OnDestroy {
     this.fetchedKeys.clear();
 
     // Subscribe to event stream for this replay's duration.
-    this.eventStream.events$
+    this.eventStream.liveEvents$
       .pipe(
         buffer(animationFrames()),
         filter(batch => batch.length > 0),

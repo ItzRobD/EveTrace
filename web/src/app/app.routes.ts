@@ -22,4 +22,9 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/replay/replay').then(m => m.ReplayComponent),
   },
+  {
+    path: 'config',
+    loadComponent: () =>
+      import('./pages/config/config').then(m => m.ConfigComponent),
+  },
 ];

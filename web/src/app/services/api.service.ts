@@ -76,6 +76,25 @@ export class ApiService {
     return this.unwrap(this.http.get<ApiResponse<ReloadEvent[]>>(`${this.baseURL}/sessions/${sessionId}/reload`));
   }
 
+  getStatus(): Observable<{ logDir: string; eventsProcessed: number; sessionsOpened: number; wsClients: number }> {
+    return this.http.get<{ logDir: string; eventsProcessed: number; sessionsOpened: number; wsClients: number }>(
+      `${this.baseURL}/status`,
+    );
+  }
+
+  getLogDirPresets(): Observable<{ label: string; path: string }[]> {
+    return this.http.get<{ presets: { label: string; path: string }[] }>(
+      `${this.baseURL}/config/presets`,
+    ).pipe(map(r => r.presets));
+  }
+
+  setLogDir(logDir: string): Observable<{ logDir: string; eventsProcessed: number; sessionsOpened: number; wsClients: number }> {
+    return this.http.post<{ logDir: string; eventsProcessed: number; sessionsOpened: number; wsClients: number }>(
+      `${this.baseURL}/config/logdir`,
+      { logDir },
+    );
+  }
+
   replaySession(
     sessionId: number,
     speed = 20,

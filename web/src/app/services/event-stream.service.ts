@@ -1,6 +1,6 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
-import { EMPTY, Observable, Subject, defer } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, Subject, defer } from 'rxjs';
 import { catchError, repeat, share, takeUntil } from 'rxjs';
 import { filter, map } from 'rxjs';
 import {
@@ -9,17 +9,19 @@ import {
   LiveKillPayload,
   LiveMiningPayload,
 } from '../models/live-event.model';
+import { DiagnosticEvent } from '../models/diagnostic-event.model';
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting';
+export type WSMessage = LiveEvent | DiagnosticEvent;
 
 const RECONNECT_DELAY_MS = 3000;
 const WS_URL = `ws://${window.location.host}/ws`;
 
 @Injectable({ providedIn: 'root' })
 export class EventStreamService implements OnDestroy {
-  private socket$: WebSocketSubject<LiveEvent> | null = null;
+  private socket$: WebSocketSubject<WSMessage> | null = null;
   private readonly destroy$ = new Subject<void>();
-  private readonly statusSubject$ = new Subject<ConnectionStatus>();
+  private readonly statusSubject$ = new BehaviorSubject<ConnectionStatus>('disconnected');
 
   constructor() {
     // Hold a permanent subscription so the WebSocket stays connected regardless
@@ -35,8 +37,8 @@ export class EventStreamService implements OnDestroy {
   // (including reconnects). repeat({ delay }) only resubscribes after the
   // inner observable completes, which happens when the socket closes — so
   // we never tear down a healthy connection on a timer.
-  readonly events$: Observable<LiveEvent> = defer(() => {
-    this.socket$ = webSocket<LiveEvent>({
+  readonly events$: Observable<WSMessage> = defer(() => {
+    this.socket$ = webSocket<WSMessage>({
       url: WS_URL,
       openObserver: {
         next: () => this.statusSubject$.next('connected'),
@@ -57,8 +59,16 @@ export class EventStreamService implements OnDestroy {
     share(),
   );
 
+  readonly diagnostics$: Observable<DiagnosticEvent> = this.events$.pipe(
+    filter((m): m is DiagnosticEvent => 'level' in m),
+  );
+
+  readonly liveEvents$: Observable<LiveEvent> = this.events$.pipe(
+    filter((m): m is LiveEvent => 'Type' in m),
+  );
+
   readonly combat$: Observable<LiveCombatPayload & { SessionID: string; Timestamp: string }> =
-    this.events$.pipe(
+    this.liveEvents$.pipe(
       filter((e): e is LiveEvent & { Combat: LiveCombatPayload } =>
         e.Type === 'combat' && e.Combat !== null,
       ),
@@ -66,7 +76,7 @@ export class EventStreamService implements OnDestroy {
     );
 
   readonly kills$: Observable<LiveKillPayload & { SessionID: string; Timestamp: string }> =
-    this.events$.pipe(
+    this.liveEvents$.pipe(
       filter((e): e is LiveEvent & { Kill: LiveKillPayload } =>
         e.Type === 'kill' && e.Kill !== null,
       ),
@@ -74,7 +84,7 @@ export class EventStreamService implements OnDestroy {
     );
 
   readonly mining$: Observable<LiveMiningPayload & { SessionID: string; Timestamp: string }> =
-    this.events$.pipe(
+    this.liveEvents$.pipe(
       filter((e): e is LiveEvent & { Mining: LiveMiningPayload } =>
         e.Type === 'mining' && e.Mining !== null,
       ),

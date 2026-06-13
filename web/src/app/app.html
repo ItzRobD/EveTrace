@@ -73,3 +73,20 @@
     <router-outlet />
   </main>
 </div>
+
+<p-dialog
+  header="Configuration Issue"
+  [(visible)]="noLogDirVisible"
+  [modal]="true"
+  [closable]="false"
+  [draggable]="false"
+  [resizable]="false"
+  styleClass="eve-dialog"
+>
+  <div class="p-4">
+    <p>{{ noLogDirMessage }}</p>
+    <div class="flex justify-end mt-4">
+      <p-button label="Go to Settings" (onClick)="goToConfig()" />
+    </div>
+  </div>
+</p-dialog>

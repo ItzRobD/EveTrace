@@ -3,11 +3,15 @@ package api
 import (
 	"context"
 	"database/sql"
+	"io/fs"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+
+	"EveTrace/web"
 )
 
 // Server wraps the Gin engine and HTTP server for graceful shutdown.
@@ -19,38 +23,42 @@ type Server struct {
 // New builds a Gin router with all routes registered and returns a Server
 // ready to be started with Run. ctx is the server's root context; it is
 // used by background operations such as session replay.
-func New(db *sql.DB, hub *Hub, addr string, ctx context.Context) *Server {
+func New(db *sql.DB, hub *Hub, addr string, ctx context.Context, watcherMgr WatcherRestarter) *Server {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:4200"},
+		AllowOrigins:     []string{"http://localhost:4200", "http://localhost:27182"},
 		AllowMethods:     []string{"GET", "POST", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Content-Type"},
 		AllowCredentials: false,
 		MaxAge:           12 * time.Hour,
 	}))
 
-	h := &handler{db: db, hub: hub, ctx: ctx}
+	h := &handler{db: db, hub: hub, ctx: ctx, watcherMgr: watcherMgr}
 
-	api := r.Group("/api")
+	apiGrp := r.Group("/api")
 	{
-		api.GET("/characters", h.listCharacters)
-		api.GET("/characters/:id", h.getCharacter)
-		api.DELETE("/characters/:id", h.deleteCharacter)
-		api.GET("/characters/:id/sessions", h.listCharacterSessions)
+		apiGrp.GET("/status", h.getStatus)
+		apiGrp.GET("/config/presets", h.getLogDirPresets)
+		apiGrp.POST("/config/logdir", h.setLogDir)
 
-		api.GET("/sessions", h.listSessions)
-		api.GET("/sessions/:id", h.getSession)
-		api.DELETE("/sessions/:id", h.deleteSession)
-		api.GET("/sessions/:id/combat", h.listCombat)
-		api.GET("/sessions/:id/kills", h.listKills)
-		api.GET("/sessions/:id/mining", h.listMining)
-		api.GET("/sessions/:id/travel", h.listTravel)
-		api.GET("/sessions/:id/cap", h.listCap)
-		api.GET("/sessions/:id/reload", h.listReload)
+		apiGrp.GET("/characters", h.listCharacters)
+		apiGrp.GET("/characters/:id", h.getCharacter)
+		apiGrp.DELETE("/characters/:id", h.deleteCharacter)
+		apiGrp.GET("/characters/:id/sessions", h.listCharacterSessions)
 
-		debug := api.Group("/debug")
+		apiGrp.GET("/sessions", h.listSessions)
+		apiGrp.GET("/sessions/:id", h.getSession)
+		apiGrp.DELETE("/sessions/:id", h.deleteSession)
+		apiGrp.GET("/sessions/:id/combat", h.listCombat)
+		apiGrp.GET("/sessions/:id/kills", h.listKills)
+		apiGrp.GET("/sessions/:id/mining", h.listMining)
+		apiGrp.GET("/sessions/:id/travel", h.listTravel)
+		apiGrp.GET("/sessions/:id/cap", h.listCap)
+		apiGrp.GET("/sessions/:id/reload", h.listReload)
+
+		debug := apiGrp.Group("/debug")
 		{
 			debug.POST("/replay/:id", h.replaySession)
 			debug.DELETE("/replay/:id", h.cancelReplay)
@@ -59,10 +67,54 @@ func New(db *sql.DB, hub *Hub, addr string, ctx context.Context) *Server {
 
 	r.GET("/ws", h.serveWS)
 
+	// SPA static file serving (only active when built with -tags embed).
+	registerSPA(r)
+
 	return &Server{
 		engine: r,
 		srv:    &http.Server{Addr: addr, Handler: r},
 	}
+}
+
+// registerSPA wires up embedded static file serving. When EmbeddedFiles is
+// empty (dev build without -tags embed) this is a no-op.
+func registerSPA(r *gin.Engine) {
+	// Confirm dist was embedded by checking for the root directory.
+	// On a stub (non-embed) build, EmbeddedFiles is an empty FS and
+	// dist/ won't exist.
+	if _, err := web.EmbeddedFiles.Open("dist/browser/index.html"); err != nil {
+		// No embedded files (dev build) — API-only mode.
+		return
+	}
+
+	browserFS, err := fs.Sub(web.EmbeddedFiles, "dist/browser")
+	if err != nil {
+		return
+	}
+
+	fileServer := http.FileServer(http.FS(browserFS))
+
+	r.NoRoute(func(c *gin.Context) {
+		path := c.Request.URL.Path
+
+		// Let API and WS routes through — they are already registered and would
+		// only hit NoRoute if somehow unmatched, but guard anyway.
+		if strings.HasPrefix(path, "/api/") || path == "/ws" {
+			c.Status(http.StatusNotFound)
+			return
+		}
+
+		// Try to serve the file directly.
+		trimmed := strings.TrimPrefix(path, "/")
+		if _, err := browserFS.Open(trimmed); err == nil {
+			fileServer.ServeHTTP(c.Writer, c.Request)
+			return
+		}
+
+		// SPA fallback: serve index.html so Angular's router can handle the path.
+		c.Request.URL.Path = "/"
+		fileServer.ServeHTTP(c.Writer, c.Request)
+	})
 }
 
 // Run starts the HTTP server in the current goroutine and shuts it down

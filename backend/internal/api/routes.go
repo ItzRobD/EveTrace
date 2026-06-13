@@ -9,13 +9,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
+	"EveTrace/internal/appconfig"
 	"EveTrace/internal/database/repo"
+	"EveTrace/internal/metrics"
 )
 
+// WatcherRestarter is satisfied by watcher_manager.Manager.
+type WatcherRestarter interface {
+	LogDir() string
+	Restart(newLogDir string)
+}
+
 type handler struct {
-	db  *sql.DB
-	hub *Hub
-	ctx context.Context
+	db         *sql.DB
+	hub        *Hub
+	ctx        context.Context
+	watcherMgr WatcherRestarter
 }
 
 var upgrader = websocket.Upgrader{
@@ -221,6 +230,59 @@ func (h *handler) listReload(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, wrap(rows, len(rows)))
+}
+
+// ── log dir presets ───────────────────────────────────────────────────────────
+
+func (h *handler) getLogDirPresets(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"presets": logDirPresets()})
+}
+
+// ── status / config ───────────────────────────────────────────────────────────
+
+type statusResponse struct {
+	LogDir          string `json:"logDir"`
+	EventsProcessed int64  `json:"eventsProcessed"`
+	SessionsOpened  int64  `json:"sessionsOpened"`
+	WSClients       int32  `json:"wsClients"`
+}
+
+func (h *handler) getStatus(c *gin.Context) {
+	var logDir string
+	if h.watcherMgr != nil {
+		logDir = h.watcherMgr.LogDir()
+	}
+	c.JSON(http.StatusOK, statusResponse{
+		LogDir:          logDir,
+		EventsProcessed: metrics.EventsProcessed.Load(),
+		SessionsOpened:  metrics.SessionsOpened.Load(),
+		WSClients:       metrics.WSClients.Load(),
+	})
+}
+
+func (h *handler) setLogDir(c *gin.Context) {
+	var body struct {
+		LogDir string `json:"logDir" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if h.watcherMgr == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "watcher not available"})
+		return
+	}
+	if err := appconfig.SetLogDir(body.LogDir); err != nil {
+		// Non-fatal: log it but still apply the change in-memory.
+		_ = err
+	}
+	h.watcherMgr.Restart(body.LogDir)
+	c.JSON(http.StatusOK, statusResponse{
+		LogDir:          body.LogDir,
+		EventsProcessed: metrics.EventsProcessed.Load(),
+		SessionsOpened:  metrics.SessionsOpened.Load(),
+		WSClients:       metrics.WSClients.Load(),
+	})
 }
 
 // ── websocket ─────────────────────────────────────────────────────────────────

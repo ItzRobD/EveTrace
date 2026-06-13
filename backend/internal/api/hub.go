@@ -6,6 +6,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"EveTrace/internal/metrics"
 	"EveTrace/pkg/core"
 )
 
@@ -51,11 +52,13 @@ func (h *Hub) Run(done <-chan struct{}) {
 			h.mu.Lock()
 			h.clients[c] = true
 			h.mu.Unlock()
+			metrics.WSClients.Add(1)
 		case c := <-h.unregister:
 			h.mu.Lock()
 			if _, ok := h.clients[c]; ok {
 				delete(h.clients, c)
 				close(c.send)
+				metrics.WSClients.Add(-1)
 			}
 			h.mu.Unlock()
 		case msg := <-h.broadcast:
@@ -78,7 +81,16 @@ func (h *Hub) Send(ev core.Event) {
 	if !ev.Live {
 		return
 	}
-	b, err := json.Marshal(ev)
+	h.broadcastJSON(ev)
+}
+
+// SendDiagnostic encodes a core.LogEvent as JSON and queues it for broadcast.
+func (h *Hub) SendDiagnostic(ev core.LogEvent) {
+	h.broadcastJSON(ev)
+}
+
+func (h *Hub) broadcastJSON(v any) {
+	b, err := json.Marshal(v)
 	if err != nil {
 		return
 	}

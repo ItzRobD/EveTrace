@@ -1,5 +1,5 @@
 import { Component, inject, OnDestroy, OnInit } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map, Subscription } from 'rxjs';
 import { BreakpointObserver } from '@angular/cdk/layout';
@@ -7,6 +7,7 @@ import { Drawer } from 'primeng/drawer';
 import { Button } from 'primeng/button';
 import { Tag } from 'primeng/tag';
 import { Tooltip } from 'primeng/tooltip';
+import { Dialog } from 'primeng/dialog';
 import { EventStreamService, ConnectionStatus } from './services/event-stream.service';
 
 interface NavItem {
@@ -19,13 +20,14 @@ const MOBILE_BREAKPOINT = '(max-width: 768px)';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Drawer, Button, Tag, Tooltip],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Drawer, Button, Tag, Tooltip, Dialog],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
 export class App implements OnInit, OnDestroy {
   private readonly eventStream = inject(EventStreamService);
   private readonly breakpoints = inject(BreakpointObserver);
+  private readonly router = inject(Router);
   private eventsSubscription?: Subscription;
 
   protected readonly connectionStatus = toSignal(this.eventStream.status$, {
@@ -40,10 +42,14 @@ export class App implements OnInit, OnDestroy {
   protected sidebarCollapsed = false;
   protected drawerOpen = false;
 
+  protected noLogDirVisible = false;
+  protected noLogDirMessage = '';
+
   protected readonly navItems: NavItem[] = [
     { label: 'Live', icon: 'pi pi-bolt', route: '/live' },
     { label: 'Replay', icon: 'pi pi-history', route: '/replay' },
     { label: 'Characters', icon: 'pi pi-users', route: '/characters' },
+    { label: 'Config', icon: 'pi pi-cog', route: '/config' },
   ];
 
   protected onHamburgerClick(): void {
@@ -65,8 +71,19 @@ export class App implements OnInit, OnDestroy {
     return map[status];
   }
 
+  protected goToConfig(): void {
+    this.noLogDirVisible = false;
+    this.router.navigate(['/config']);
+    this.drawerOpen = false;
+  }
+
   ngOnInit(): void {
-    this.eventsSubscription = this.eventStream.events$.subscribe();
+    this.eventsSubscription = this.eventStream.events$.subscribe(msg => {
+      if ('level' in msg && msg.code === 'no_log_dir') {
+        this.noLogDirMessage = msg.message;
+        this.noLogDirVisible = true;
+      }
+    });
   }
 
   ngOnDestroy(): void {

@@ -51,7 +51,7 @@ export class LiveStateService implements OnDestroy {
       error: () => this.loading.set(false),
     });
 
-    this.eventStream.events$
+    this.eventStream.liveEvents$
       .pipe(
         buffer(animationFrames()),
         filter(batch => batch.length > 0),

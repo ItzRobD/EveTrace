@@ -16,6 +16,7 @@ const (
 	CodeCollision       = "collision"         // two characters share one log file
 	CodeHeaderParseFail = "header_parse_fail" // could not read session header after retries
 	CodeNoListener      = "no_listener"       // file has no character attached (header-only)
+	CodeNoLogDir        = "no_log_dir"        // log directory not configured or invalid
 )
 
 // LogEvent is a structured diagnostic event produced by backend components.

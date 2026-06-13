@@ -1,0 +1,101 @@
+.page-header {
+  margin-bottom: 1.5rem;
+
+  h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+}
+
+.config-section {
+  max-width: 640px;
+  margin-bottom: 2rem;
+
+  h3 {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--p-text-muted-color);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--p-surface-border);
+    padding-bottom: 0.5rem;
+  }
+}
+
+.section-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--p-text-muted-color);
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.status-detail {
+  font-size: 0.875rem;
+  color: var(--p-text-muted-color);
+}
+
+.logdir-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.logdir-input {
+  flex: 1;
+  font-family: monospace;
+}
+
+.presets-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.presets-label {
+  font-size: 0.8rem;
+  color: var(--p-text-muted-color);
+}
+
+.save-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--p-red-500);
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem;
+  border: 1px solid var(--p-surface-border);
+  border-radius: var(--p-border-radius-md);
+  background: var(--p-surface-50);
+}
+
+.metric-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--p-text-muted-color);
+}
+
+.metric-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+}

@@ -1,0 +1,72 @@
+<div class="page-header">
+  <h2>Config</h2>
+</div>
+
+<!-- Connection status -->
+<section class="config-section">
+  <h3>Status</h3>
+  <div class="status-row">
+    <p-tag
+      [value]="connectionStatus()"
+      [severity]="statusSeverity()"
+    />
+    @if (status()) {
+      <span class="status-detail">{{ status()!.wsClients }} WebSocket client(s) connected</span>
+    }
+  </div>
+</section>
+
+<!-- Log directory -->
+<section class="config-section">
+  <h3>Log Directory</h3>
+  <p class="section-hint">Path to the EVE Online Gamelogs folder that EveTrace watches for new sessions.</p>
+  <div class="logdir-row">
+    <input
+      pInputText
+      type="text"
+      class="logdir-input"
+      placeholder="/path/to/EVE/logs/Gamelogs"
+      [ngModel]="logDirInput()"
+      (ngModelChange)="logDirInput.set($event)"
+    />
+    <p-button
+      label="Save"
+      icon="pi pi-check"
+      [loading]="saving()"
+      (onClick)="saveLogDir()"
+    />
+  </div>
+  @if (saveError()) {
+    <p class="save-error">{{ saveError() }}</p>
+  }
+  @if (presets().length) {
+    <div class="presets-row">
+      <span class="presets-label">Presets:</span>
+      @for (preset of presets(); track preset.path) {
+        <p-button
+          [label]="preset.label"
+          severity="secondary"
+          size="small"
+          (onClick)="usePreset(preset.path)"
+        />
+      }
+    </div>
+  }
+</section>
+
+<!-- Metrics -->
+@if (status()) {
+  <section class="config-section">
+    <h3>Metrics</h3>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <span class="metric-label">Events Processed</span>
+        <span class="metric-value">{{ status()!.eventsProcessed | number }}</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Sessions Opened</span>
+        <span class="metric-value">{{ status()!.sessionsOpened | number }}</span>
+      </div>
+    </div>
+  </section>
+}
