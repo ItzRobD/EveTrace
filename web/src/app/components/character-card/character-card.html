@@ -9,6 +9,62 @@
           </a>
         }
       </div>
+      <div class="header-actions">
+        @if (!isPopout()) {
+          <p-button
+            icon="pi pi-clone"
+            [text]="true"
+            [rounded]="true"
+            size="small"
+            severity="secondary"
+            pTooltip="Pop out character window"
+            tooltipPosition="bottom"
+            (onClick)="popOut()"
+          />
+        }
+        <p-button
+          icon="pi pi-eye"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          severity="secondary"
+          pTooltip="Visibility settings"
+          tooltipPosition="bottom"
+          (onClick)="op.toggle($event)"
+        />
+        <p-popover #op>
+          <div class="settings-panel">
+            <p-button
+              [label]="'Activity Chart'"
+              [icon]="showChart() ? 'pi pi-eye' : 'pi pi-eye-slash'"
+              [text]="true"
+              severity="secondary"
+              (onClick)="showChart.set(!showChart())"
+            />
+            <p-button
+              [label]="'Combat Stats'"
+              [icon]="showCombatStats() ? 'pi pi-eye' : 'pi pi-eye-slash'"
+              [text]="true"
+              severity="secondary"
+              (onClick)="showCombatStats.set(!showCombatStats())"
+            />
+            <p-button
+              [label]="'Mining Stats'"
+              [icon]="showMiningStats() ? 'pi pi-eye' : 'pi pi-eye-slash'"
+              [text]="true"
+              severity="secondary"
+              (onClick)="showMiningStats.set(!showMiningStats())"
+            />
+            <p-button
+              [label]="'Events Feed'"
+              [icon]="showEventsTable() ? 'pi pi-eye' : 'pi pi-eye-slash'"
+              [text]="true"
+              severity="secondary"
+              (onClick)="showEventsTable.set(!showEventsTable())"
+            />
+          </div>
+        </p-popover>
+      </div>
       @if (state().capAlert) {
         <div class="cap-alert">
           <i class="pi pi-bolt"></i> Cap Starved: {{ state().capAlertModule }}
@@ -18,94 +74,103 @@
   </ng-template>
 
   <!-- Activity Chart -->
-  <div class="chart-section">
-    <div class="chart-header">
-      <p-button
-        icon="pi pi-refresh"
-        [rounded]="true"
-        [text]="true"
-        size="small"
-        severity="secondary"
-        (onClick)="resetChartWindow()"
-      />
-      <span class="window-label">{{ chartWindowMinutes() }} min window</span>
-      <p-slider
-        [(ngModel)]="chartWindowValue"
-        [min]="1" [max]="30" [step]="1"
-        class="window-slider"
-      />
-    </div>
-    @if (windowedBuckets().length > 0) {
-      <div class="chart-wrap">
-        <canvas baseChart
-          type="line"
-          [data]="displayedChartData()"
-          [options]="lineChartOptions"
-        ></canvas>
+  @if (showChart()) {
+    <div class="chart-section">
+      <div class="chart-header">
+        <p-button
+          icon="pi pi-refresh"
+          [rounded]="true"
+          [text]="true"
+          size="small"
+          severity="secondary"
+          pTooltip="Reset chart window"
+          tooltipPosition="bottom"
+          (onClick)="resetChartWindow()"
+        />
+        <span class="window-label">{{ chartWindowMinutes() }} min window</span>
+        <p-slider
+          [(ngModel)]="chartWindowValue"
+          [min]="1" [max]="30" [step]="1"
+          class="window-slider"
+        />
       </div>
-    } @else {
-      <div class="empty-chart">No activity data yet</div>
-    }
-  </div>
+      @if (windowedBuckets().length > 0) {
+        <div class="chart-wrap">
+          <canvas baseChart
+            type="line"
+            [data]="displayedChartData()"
+            [options]="lineChartOptions"
+          ></canvas>
+        </div>
+      } @else {
+        <div class="empty-chart">No activity data yet</div>
+      }
+    </div>
+  }
 
-  <!-- Stats Row 1: Combat (always visible) -->
-  <h4 class="stat-group-label">Combat</h4>
-  <div class="stats-row">
-    <span class="stat-indicator combat" title="Combat"><i class="evi evi-turret"></i></span>
-    <div class="mini-stat">
-      <span class="mini-label">Avg Out DPS</span>
-      <span class="mini-value out">{{ avgDpsFor() | number }}</span>
+  <!-- Stats Row 1: Combat -->
+  @if (showCombatStats()) {
+    <h4 class="stat-group-label">Combat</h4>
+    <div class="stats-row">
+      <span class="stat-indicator combat" title="Combat"><i class="evi evi-turret"></i></span>
+      <div class="mini-stat">
+        <span class="mini-label">Avg Out DPS</span>
+        <span class="mini-value out">{{ avgDpsFor() | number }}</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-label">Avg In DPS</span>
+        <span class="mini-value in">{{ avgInDpsFor() | number }}</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-label">Bounties</span>
+        <span class="mini-value">{{ state().killFeed.length }}</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-label">Session ISK</span>
+        <span class="mini-value isk">{{ state().totalBountyISK | number }}</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-label">ISK / hr</span>
+        <span class="mini-value isk">{{ iskPerHourFor() | number }}</span>
+      </div>
     </div>
-    <div class="mini-stat">
-      <span class="mini-label">Avg In DPS</span>
-      <span class="mini-value in">{{ avgInDpsFor() | number }}</span>
-    </div>
-    <div class="mini-stat">
-      <span class="mini-label">Bounties</span>
-      <span class="mini-value">{{ state().killFeed.length }}</span>
-    </div>
-    <div class="mini-stat">
-      <span class="mini-label">Session ISK</span>
-      <span class="mini-value isk">{{ state().totalBountyISK | number }}</span>
-    </div>
-    <div class="mini-stat">
-      <span class="mini-label">ISK / hr</span>
-      <span class="mini-value isk">{{ iskPerHourFor() | number }}</span>
-    </div>
-  </div>
+  }
 
   <!-- Stats Row 2: Mining -->
-  <h4 class="stat-group-label">Mining</h4>
-  <div class="stats-row">
-    <span class="stat-indicator mining" title="Mining"><i class="evi evi-asteroid"></i></span>
-    <div class="mini-stat">
-      <span class="mini-label">Mining / min</span>
-      <span class="mini-value">{{ miningRateFor() | number }}</span>
+  @if (showMiningStats()) {
+    <h4 class="stat-group-label">Mining</h4>
+    <div class="stats-row">
+      <span class="stat-indicator mining" title="Mining"><i class="evi evi-asteroid"></i></span>
+      <div class="mini-stat">
+        <span class="mini-label">Mining / min</span>
+        <span class="mini-value">{{ miningRateFor() | number }}</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-label">Total Mined</span>
+        <span class="mini-value">{{ state().totalMined | number }}</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-label">Residue Lost</span>
+        <span class="mini-value residue">{{ residueLostFor() | number }}</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-label">Criticals</span>
+        <span class="mini-value crit">{{ criticalCountFor() | number }}</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-label">Crits / hr</span>
+        <span class="mini-value crit">{{ critsPerHourFor() | number }}</span>
+      </div>
     </div>
-    <div class="mini-stat">
-      <span class="mini-label">Total Mined</span>
-      <span class="mini-value">{{ state().totalMined | number }}</span>
-    </div>
-    <div class="mini-stat">
-      <span class="mini-label">Residue Lost</span>
-      <span class="mini-value residue">{{ residueLostFor() | number }}</span>
-    </div>
-    <div class="mini-stat">
-      <span class="mini-label">Criticals</span>
-      <span class="mini-value crit">{{ criticalCountFor() | number }}</span>
-    </div>
-    <div class="mini-stat">
-      <span class="mini-label">Crits / hr</span>
-      <span class="mini-value crit">{{ critsPerHourFor() | number }}</span>
-    </div>
-  </div>
+  }
 
   <!-- Event Feed Accordion -->
-  <p-accordion
-    [(value)]="accordionValue"
-    [multiple]="true"
-    styleClass="event-accordion"
-  >
+  @if (showEventsTable()) {
+    <p-accordion
+      [(value)]="accordionValue"
+      [multiple]="true"
+      styleClass="event-accordion"
+    >
     <p-accordionpanel value="events">
       <p-accordionheader>Events</p-accordionheader>
       <p-accordioncontent>
@@ -258,6 +323,7 @@
       </p-accordioncontent>
     </p-accordionpanel>
   </p-accordion>
+  }
 
   <ng-template #entityTableTemplate>
     <div class="entity-scroll">

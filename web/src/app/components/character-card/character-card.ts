@@ -16,6 +16,8 @@ import { Button } from 'primeng/button';
 import { Slider } from 'primeng/slider';
 import { Tab, TabList, TabPanel, TabPanels, Tabs } from 'primeng/tabs';
 import { Tag } from 'primeng/tag';
+import { Tooltip } from 'primeng/tooltip';
+import { Popover } from 'primeng/popover';
 import {
   buildChartData,
   CharacterLiveState,
@@ -57,6 +59,7 @@ interface FeedAllEntry {
     DecimalPipe,
     NgTemplateOutlet,
     FormsModule,
+    Popover,
     RouterLink,
     Slider,
     Tab,
@@ -65,14 +68,21 @@ interface FeedAllEntry {
     TabPanels,
     Tabs,
     Tag,
+    Tooltip,
   ],
 })
 export class CharacterCardComponent {
   readonly state = input.required<CharacterLiveState>();
+  readonly isPopout = input(false);
 
   protected readonly feedTab = signal('all');
   protected readonly accordionValue = signal<string[]>(['events']);
   protected readonly chartWindowMinutes = signal(2);
+
+  protected readonly showChart = signal(true);
+  protected readonly showCombatStats = signal(true);
+  protected readonly showMiningStats = signal(true);
+  protected readonly showEventsTable = signal(true);
 
   // Narrow intermediates — Angular's computed() uses === equality, so these only
   // propagate when the specific array reference changes, not on every event type.
@@ -233,5 +243,10 @@ export class CharacterCardComponent {
     return s.bountyHistory
       .filter(e => new Date(e.timestamp).getTime() >= cutoff)
       .reduce((sum, e) => sum + e.isk, 0);
+  }
+
+  protected popOut(): void {
+    const url = `/popout/${encodeURIComponent(this.state().characterName)}`;
+    window.open(url, `evetrace-${this.state().characterName}`, 'width=600,height=800');
   }
 }

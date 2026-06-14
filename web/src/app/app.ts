@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnDestroy, OnInit } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { map, Subscription } from 'rxjs';
+import { map, Subscription, filter } from 'rxjs';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { Drawer } from 'primeng/drawer';
 import { Button } from 'primeng/button';
@@ -48,6 +48,14 @@ export class App implements OnInit, OnDestroy {
   protected readonly isMobile = toSignal(
     this.breakpoints.observe(MOBILE_BREAKPOINT).pipe(map(r => r.matches)),
     { initialValue: false },
+  );
+
+  protected readonly isPopout = toSignal(
+    this.router.events.pipe(
+      filter(event => event instanceof NavigationEnd),
+      map(() => this.router.url.includes('/popout/')),
+    ),
+    { initialValue: this.router.url.includes('/popout/') },
   );
 
   protected sidebarCollapsed = false;

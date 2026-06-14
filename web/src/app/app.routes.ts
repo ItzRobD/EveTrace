@@ -23,6 +23,11 @@ export const routes: Routes = [
       import('./pages/replay/replay').then(m => m.ReplayComponent),
   },
   {
+    path: 'popout/:name',
+    loadComponent: () =>
+      import('./pages/popout-character/popout-character').then(m => m.PopoutCharacterComponent),
+  },
+  {
     path: 'config',
     loadComponent: () =>
       import('./pages/config/config').then(m => m.ConfigComponent),

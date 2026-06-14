@@ -1,88 +1,94 @@
-<header class="top-bar">
-  @if (sidebarCollapsed || isMobile()) {
+@if (!isPopout()) {
+  <header class="top-bar">
+    @if (sidebarCollapsed || isMobile()) {
+      <p-button
+        icon="pi pi-bars"
+        [text]="true"
+        severity="secondary"
+        (onClick)="onHamburgerClick()"
+      />
+    }
+    <span class="app-brand">EveTrace</span>
+    <span class="spacer"></span>
     <p-button
-      icon="pi pi-bars"
+      [icon]="themeIcon()"
       [text]="true"
+      [rounded]="true"
+      size="small"
       severity="secondary"
-      (onClick)="onHamburgerClick()"
+      [pTooltip]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+      tooltipPosition="bottom"
+      (onClick)="toggleTheme()"
     />
-  }
-  <span class="app-brand">EveTrace</span>
-  <span class="spacer"></span>
-  <p-button
-    [icon]="themeIcon()"
-    [text]="true"
-    [rounded]="true"
-    size="small"
-    severity="secondary"
-    [pTooltip]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-    tooltipPosition="bottom"
-    (onClick)="toggleTheme()"
-  />
-  <p-tag
-    [value]="connectionStatus()"
-    [severity]="statusSeverity(connectionStatus())"
-  />
-</header>
+    <p-tag
+      [value]="connectionStatus()"
+      [severity]="statusSeverity(connectionStatus())"
+    />
+  </header>
 
-<div class="body-layout">
-  <nav class="sidebar" [class.collapsed]="sidebarCollapsed">
-    <div class="sidebar-items">
-      @for (item of navItems; track item.route) {
-        <div class="nav-item-wrap">
-          <a
-            class="nav-item"
-            [routerLink]="item.route"
-            routerLinkActive="nav-item--active"
-            [pTooltip]="item.label"
+  <div class="body-layout">
+    <nav class="sidebar" [class.collapsed]="sidebarCollapsed">
+      <div class="sidebar-items">
+        @for (item of navItems; track item.route) {
+          <div class="nav-item-wrap">
+            <a
+              class="nav-item"
+              [routerLink]="item.route"
+              routerLinkActive="nav-item--active"
+              [pTooltip]="item.label"
+              tooltipPosition="right"
+              [tooltipDisabled]="!sidebarCollapsed"
+            >
+              <i [class]="item.icon"></i>
+              @if (!sidebarCollapsed) {
+                <span class="nav-label">{{ item.label }}</span>
+              }
+            </a>
+          </div>
+        }
+      </div>
+
+      <div class="sidebar-footer">
+        @if (!sidebarCollapsed) {
+          <p-button
+            icon="pi pi-chevron-left"
+            [text]="true"
+            severity="secondary"
+            pTooltip="Collapse sidebar"
             tooltipPosition="right"
-            [tooltipDisabled]="!sidebarCollapsed"
-          >
-            <i [class]="item.icon"></i>
-            @if (!sidebarCollapsed) {
-              <span class="nav-label">{{ item.label }}</span>
-            }
-          </a>
-        </div>
-      }
-    </div>
-
-    <div class="sidebar-footer">
-      @if (!sidebarCollapsed) {
-        <p-button
-          icon="pi pi-chevron-left"
-          [text]="true"
-          severity="secondary"
-          pTooltip="Collapse sidebar"
-          tooltipPosition="right"
-          (onClick)="sidebarCollapsed = true"
-        />
-      }
-    </div>
-  </nav>
-
-  <p-drawer [(visible)]="drawerOpen" position="left" header="EveTrace">
-    <nav class="drawer-nav">
-      @for (item of navItems; track item.route) {
-        <div class="nav-item-wrap">
-          <a
-            class="nav-item"
-            [routerLink]="item.route"
-            routerLinkActive="nav-item--active"
-            (click)="drawerOpen = false"
-          >
-            <i [class]="item.icon"></i>
-            <span>{{ item.label }}</span>
-          </a>
-        </div>
-      }
+            (onClick)="sidebarCollapsed = true"
+          />
+        }
+      </div>
     </nav>
-  </p-drawer>
 
-  <main class="page-content">
+    <p-drawer [(visible)]="drawerOpen" position="left" header="EveTrace">
+      <nav class="drawer-nav">
+        @for (item of navItems; track item.route) {
+          <div class="nav-item-wrap">
+            <a
+              class="nav-item"
+              [routerLink]="item.route"
+              routerLinkActive="nav-item--active"
+              (click)="drawerOpen = false"
+            >
+              <i [class]="item.icon"></i>
+              <span>{{ item.label }}</span>
+            </a>
+          </div>
+        }
+      </nav>
+    </p-drawer>
+
+    <main class="page-content">
+      <router-outlet />
+    </main>
+  </div>
+} @else {
+  <main class="popout-container">
     <router-outlet />
   </main>
-</div>
+}
 
 <p-dialog
   header="Configuration Issue"

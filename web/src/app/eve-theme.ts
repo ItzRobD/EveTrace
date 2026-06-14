@@ -102,4 +102,49 @@ export const EvePreset = definePreset(Aura, {
       },
     },
   },
+  components: {
+    tooltip: {
+      root: {
+        borderRadius: '{borderRadius.xs}',
+      },
+      colorScheme: {
+        light: {
+          root: {
+            background: '{surface.950}',
+            color: '{surface.0}',
+          },
+        },
+        dark: {
+          root: {
+            background: '{surface.0}',
+            color: '#ffffff',
+          },
+        },
+      },
+    },
+    popover: {
+      root: {
+        borderRadius: '{borderRadius.xs}',
+      },
+      content: {
+        padding: '0',
+      },
+      colorScheme: {
+        light: {
+          root: {
+            background: '{surface.0}',
+            color: '{surface.700}',
+            borderColor: '{surface.200}',
+          },
+        },
+        dark: {
+          root: {
+            background: '{surface.0}',
+            color: '#ffffff',
+            borderColor: '{surface.200}',
+          },
+        },
+      },
+    },
+  },
 });

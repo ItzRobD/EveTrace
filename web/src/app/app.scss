@@ -142,6 +142,12 @@
   background: var(--eve-app-bg);
 }
 
+.popout-container {
+  flex: 1;
+  overflow: hidden;
+  background: var(--eve-app-bg);
+}
+
 // ─── Page headings ────────────────────────────────────────────────────────────
 .page-header {
   margin-bottom: 1rem;
