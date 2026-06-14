@@ -49,8 +49,9 @@
   </div>
 
   <!-- Stats Row 1: Combat (always visible) -->
+  <h4 class="stat-group-label">Combat</h4>
   <div class="stats-row">
-    <span class="stat-indicator combat" title="Combat"><i class="pi pi-shield"></i></span>
+    <span class="stat-indicator combat" title="Combat"><i class="evi evi-turret"></i></span>
     <div class="mini-stat">
       <span class="mini-label">Avg Out DPS</span>
       <span class="mini-value out">{{ avgDpsFor() | number }}</span>
@@ -74,8 +75,9 @@
   </div>
 
   <!-- Stats Row 2: Mining -->
+  <h4 class="stat-group-label">Mining</h4>
   <div class="stats-row">
-    <span class="stat-indicator mining" title="Mining"><i class="pi pi-circle-fill"></i></span>
+    <span class="stat-indicator mining" title="Mining"><i class="evi evi-asteroid"></i></span>
     <div class="mini-stat">
       <span class="mini-label">Mining / min</span>
       <span class="mini-value">{{ miningRateFor() | number }}</span>
@@ -133,7 +135,7 @@
                       <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
                       @switch (e.type) {
                         @case ('combat') {
-                          <p-tag [value]="e.direction!" [severity]="e.direction === 'out' ? 'info' : 'danger'" [icon]="e.direction === 'out' ? 'pi pi-send' : 'pi pi-shield'" />
+                          <p-tag [value]="e.direction!" [severity]="e.direction === 'out' ? 'info' : 'danger'" [icon]="e.direction === 'out' ? 'evi evi-turret' : 'pi pi-shield'" />
                           <span class="feed-main">{{ e.entity }}</span>
                           <span class="feed-value">{{ e.miss ? '—' : (e.damage! | number) }}</span>
                         }
@@ -141,15 +143,15 @@
                           @if (e.residue) {
                             <span class="tag-residue tag-exceptional"><i class="pi pi-cloud"></i> RESIDUE</span>
                           } @else if (e.critical) {
-                            <p-tag value="CRITICAL" severity="success" icon="pi pi-exclamation-triangle" styleClass="tag-exceptional" />
+                            <p-tag value="CRITICAL" severity="success" icon="pi pi-sparkles" styleClass="tag-exceptional" />
                           } @else {
-                            <p-tag value="MINE" severity="warn" icon="pi pi-circle-fill" />
+                            <p-tag value="MINE" severity="warn" icon="evi evi-asteroid" />
                           }
                           <span class="feed-main">{{ e.oreType }}</span>
                           <span class="feed-value muted">{{ e.amount! | number }} units</span>
                         }
                         @case ('nav') {
-                          <p-tag value="JUMP" severity="secondary" icon="pi pi-angle-double-right" />
+                          <p-tag value="JUMP" severity="secondary" icon="evi evi-stargate" />
                           <span class="feed-main">{{ e.from || '—' }} → {{ e.to }}</span>
                         }
                       }
@@ -168,7 +170,7 @@
                   @for (e of state().combatFeed; track $index) {
                     <div class="feed-entry" [class.miss-entry]="e.miss">
                       <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
-                      <p-tag [value]="e.direction" [severity]="e.direction === 'out' ? 'info' : 'danger'" [icon]="e.direction === 'out' ? 'pi pi-send' : 'pi pi-shield'" />
+                      <p-tag [value]="e.direction" [severity]="e.direction === 'out' ? 'info' : 'danger'" [icon]="e.direction === 'out' ? 'evi evi-turret' : 'pi pi-shield'" />
                       <span class="feed-main">{{ e.entity }}</span>
                       <span class="feed-value">{{ e.miss ? '—' : (e.damage | number) }}</span>
                     </div>
@@ -186,7 +188,7 @@
                   @for (kill of state().killFeed; track $index) {
                     <div class="feed-entry kill-entry">
                       <span class="feed-time mono">{{ kill.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
-                      <p-tag value="KILL" severity="success" icon="pi pi-dollar" />
+                      <p-tag value="KILL" severity="success" icon="pi pi-trophy" />
                       <span class="feed-main">{{ kill.entity }}</span>
                       @if (kill.bounty > 0) {
                         <span class="feed-value muted">{{ kill.bounty | number }} ISK</span>
@@ -230,7 +232,7 @@
                   @for (e of state().navFeed; track $index) {
                     <div class="feed-entry">
                       <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
-                      <p-tag value="JUMP" severity="secondary" icon="pi pi-angle-double-right" />
+                      <p-tag value="JUMP" severity="secondary" icon="evi evi-stargate" />
                       <span class="feed-main">{{ e.from || '—' }} → {{ e.to }}</span>
                     </div>
                   }

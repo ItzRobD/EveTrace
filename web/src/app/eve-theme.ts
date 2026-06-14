@@ -44,6 +44,34 @@ export const EvePreset = definePreset(Aura, {
       xl: '3px',
     },
     colorScheme: {
+      light: {
+        primary: {
+          color: '{eveTeal.600}',
+          contrastColor: '#ffffff',
+          hoverColor: '{eveTeal.700}',
+          activeColor: '{eveTeal.800}',
+        },
+        highlight: {
+          background: 'rgba(45,127,150,0.12)',
+          focusBackground: 'rgba(45,127,150,0.20)',
+          color: '{eveTeal.800}',
+          focusColor: '{eveTeal.900}',
+        },
+        surface: {
+          0: '#ffffff',
+          50: '#f5f7f9',
+          100: '#eef1f4',
+          200: '#e4e9ed',
+          300: '#d7dee3',
+          400: '#c4ccd3',
+          500: '#aab4bc',
+          600: '#8b96a0',
+          700: '#6c7884',
+          800: '#4f5a64',
+          900: '#38424b',
+          950: '#232b32',
+        },
+      },
       dark: {
         primary: {
           color: '{eveTeal.500}',

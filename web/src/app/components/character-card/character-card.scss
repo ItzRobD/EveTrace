@@ -88,17 +88,24 @@
   flex: 1;
 }
 
+/* Stat group label */
+.stat-group-label {
+  margin: 1rem 0 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--p-text-muted-color);
+}
+
 /* Stats rows */
 .stats-row {
   display: flex;
   align-items: center;
   gap: 2rem;
-  margin-top: 0.5rem;
   padding: 0.75rem 1rem;
   background: var(--p-surface-50);
   border-radius: var(--p-border-radius-md);
-
-  &:first-of-type { margin-top: 1rem; }
 }
 
 
@@ -119,7 +126,6 @@
   &.mining {
     background: rgba(234, 179, 8, 0.15);
     color: #eab308;
-    font-size: 0.55rem;
   }
 }
 

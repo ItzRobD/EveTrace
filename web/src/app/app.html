@@ -9,6 +9,16 @@
   }
   <span class="app-brand">EveTrace</span>
   <span class="spacer"></span>
+  <p-button
+    [icon]="themeIcon()"
+    [text]="true"
+    [rounded]="true"
+    size="small"
+    severity="secondary"
+    [pTooltip]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+    tooltipPosition="bottom"
+    (onClick)="toggleTheme()"
+  />
   <p-tag
     [value]="connectionStatus()"
     [severity]="statusSeverity(connectionStatus())"

@@ -1,20 +1,6 @@
 // ─── EVE Online Photon UI – Global Styles ────────────────────────────────────
 
 :root {
-  // ── EVE surface palette ──────────────────────────────────────────────────
-  --p-surface-0:    #0b0e11;
-  --p-surface-50:   #0f1215;
-  --p-surface-100:  #131619;
-  --p-surface-200:  #171b1f;
-  --p-surface-300:  #1c2024;
-  --p-surface-400:  #21262c;
-  --p-surface-500:  #282e36;
-  --p-surface-600:  #353c45;
-  --p-surface-700:  #454d57;
-  --p-surface-800:  #5c6470;
-  --p-surface-900:  #7a8290;
-  --p-surface-950:  #9da4ac;
-
   // ── EVE teal primary ─────────────────────────────────────────────────────
   --p-primary-50:   rgba(77,168,192,0.06);
   --p-primary-100:  rgba(77,168,192,0.12);
@@ -65,15 +51,6 @@
   --eve-secondary:    #5c6470;
   --eve-secondary-bg: rgba(40, 46, 54, 0.5);
 
-  // ── Text ─────────────────────────────────────────────────────────────────
-  --p-text-color:         #c2c6ca;
-  --p-text-muted-color:   #6e7680;
-  --p-text-hover-color:   #d0d4d8;
-
-  // ── Borders ──────────────────────────────────────────────────────────────
-  --p-surface-border:       #232830;
-  --p-content-border-color: #232830;
-
   // ── Corner radius – square/angular like EVE panels ───────────────────────
   --p-border-radius-none: 0px;
   --p-border-radius-xs:   1px;
@@ -92,6 +69,72 @@
   --eve-cut: 8px;
 }
 
+// ─── Dark scheme (default) — near-black EVE space surfaces ───────────────────
+:root.app-dark {
+  --p-surface-0:    #0b0e11;
+  --p-surface-50:   #0f1215;
+  --p-surface-100:  #131619;
+  --p-surface-200:  #171b1f;
+  --p-surface-300:  #1c2024;
+  --p-surface-400:  #21262c;
+  --p-surface-500:  #282e36;
+  --p-surface-600:  #353c45;
+  --p-surface-700:  #454d57;
+  --p-surface-800:  #5c6470;
+  --p-surface-900:  #7a8290;
+  --p-surface-950:  #9da4ac;
+
+  --p-text-color:         #c2c6ca;
+  --p-text-muted-color:   #6e7680;
+  --p-text-hover-color:   #d0d4d8;
+
+  --p-surface-border:       #232830;
+  --p-content-border-color: #232830;
+
+  --eve-app-bg: #080b0e;
+}
+
+// ─── Light scheme — pale hangar/console surfaces ─────────────────────────────
+:root:not(.app-dark) {
+  --p-surface-0:    #ffffff;
+  --p-surface-50:   #f5f7f9;
+  --p-surface-100:  #eef1f4;
+  --p-surface-200:  #e4e9ed;
+  --p-surface-300:  #d7dee3;
+  --p-surface-400:  #c4ccd3;
+  --p-surface-500:  #aab4bc;
+  --p-surface-600:  #8b96a0;
+  --p-surface-700:  #6c7884;
+  --p-surface-800:  #4f5a64;
+  --p-surface-900:  #38424b;
+  --p-surface-950:  #232b32;
+
+  --p-text-color:         #1b2228;
+  --p-text-muted-color:   #5c6770;
+  --p-text-hover-color:   #0d1216;
+
+  --p-surface-border:       #d2dae0;
+  --p-content-border-color: #d2dae0;
+
+  --eve-app-bg: #e8edf1;
+}
+
+// ─── Custom EVE icon set (CSS-mask SVGs, inherit currentColor) ───────────────
+.evi {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  background-color: currentColor;
+  vertical-align: -0.125em;
+  -webkit-mask: var(--evi) no-repeat center;
+  mask: var(--evi) no-repeat center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+.evi-turret   { --evi: url('/icons/turret.svg'); }
+.evi-asteroid { --evi: url('/icons/asteroid.svg'); }
+.evi-stargate { --evi: url('/icons/stargate.svg'); }
+
 // ─── Global reset & base ─────────────────────────────────────────────────────
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -101,7 +144,7 @@ html, body {
   font-family: 'Exo 2', 'Segoe UI', system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  background: #080b0e;
+  background: var(--eve-app-bg);
   color: var(--p-text-color);
   -webkit-font-smoothing: antialiased;
 }
@@ -213,6 +256,38 @@ html, body {
 .p-button-danger:not([data-p-severity]) {
   &:hover, &:focus {
     color: var(--eve-danger-hover) !important;
+  }
+}
+
+// Dark-mode contrast fixes — Aura's secondary/select tokens resolve against our
+// inverted surface ramp (surface-0 is darkest here), which leaves the secondary
+// button with a pale fill and the select label near-black on a dark field.
+// Force a dark fill with a light, readable label for both.
+.app-dark {
+  .p-button-secondary:not(.p-button-text):not(.p-button-outlined) {
+    background: var(--p-surface-300) !important;
+    border-color: var(--p-surface-600) !important;
+    color: var(--p-text-color) !important;
+
+    &:hover, &:focus {
+      background: var(--p-surface-400) !important;
+      color: var(--p-text-hover-color) !important;
+    }
+  }
+
+  .p-select-label              { color: var(--p-text-color) !important; }
+  .p-select-label.p-placeholder { color: var(--p-text-muted-color) !important; }
+  .p-select-option             { color: var(--p-text-color) !important; }
+
+  // Secondary text/icon buttons (theme toggle, sidebar collapse, hamburger) —
+  // Aura's text-secondary color resolves dark on our dark surfaces. Lighten it.
+  .p-button-text.p-button-secondary {
+    color: var(--p-text-color) !important;
+
+    &:hover, &:focus {
+      color: var(--p-text-hover-color) !important;
+      background: var(--p-surface-200) !important;
+    }
   }
 }
 

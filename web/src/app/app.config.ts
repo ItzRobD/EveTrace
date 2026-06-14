@@ -18,7 +18,7 @@ export const appConfig: ApplicationConfig = {
       theme: {
         preset: EvePreset,
         options: {
-          darkModeSelector: ':root',
+          darkModeSelector: '.app-dark',
           cssLayer: { name: 'primeng', order: 'tailwind-base, primeng, tailwind-utilities' },
         },
       },
