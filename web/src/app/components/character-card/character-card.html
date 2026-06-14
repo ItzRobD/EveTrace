@@ -166,15 +166,20 @@
               @if (state().combatFeed.length === 0) {
                 <div class="empty-feed">No combat events</div>
               } @else {
-                <div class="feed-scroll">
-                  @for (e of state().combatFeed; track $index) {
-                    <div class="feed-entry" [class.miss-entry]="e.miss">
-                      <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
-                      <p-tag [value]="e.direction" [severity]="e.direction === 'out' ? 'info' : 'danger'" [icon]="e.direction === 'out' ? 'evi evi-turret' : 'pi pi-shield'" />
-                      <span class="feed-main">{{ e.entity }}</span>
-                      <span class="feed-value">{{ e.miss ? '—' : (e.damage | number) }}</span>
-                    </div>
-                  }
+                <div class="combat-tab-split">
+                  <div class="feed-scroll">
+                    @for (e of state().combatFeed; track $index) {
+                      <div class="feed-entry" [class.miss-entry]="e.miss">
+                        <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
+                        <p-tag [value]="e.direction" [severity]="e.direction === 'out' ? 'info' : 'danger'" [icon]="e.direction === 'out' ? 'evi evi-turret' : 'pi pi-shield'" />
+                        <span class="feed-main">{{ e.entity }}</span>
+                        <span class="feed-value">{{ e.miss ? '—' : (e.damage | number) }}</span>
+                      </div>
+                    }
+                  </div>
+                  <div class="totals-sidebar">
+                    <ng-container *ngTemplateOutlet="entityTableTemplate"></ng-container>
+                  </div>
                 </div>
               }
             </p-tabpanel>
@@ -245,56 +250,58 @@
               @if (entityRows().length === 0) {
                 <div class="empty-feed">No entity data yet</div>
               } @else {
-                <div class="entity-scroll">
-                  <table class="entity-table">
-                    <thead>
-                      <tr>
-                        <th class="col-name">Entity</th>
-                        <th class="col-num col-sortable" (click)="sortEntities('kills')">
-                          Kills
-                          <i class="pi"
-                            [class.pi-sort-alt]="entitySortCol() !== 'kills'"
-                            [class.pi-sort-amount-down]="entitySortCol() === 'kills' && entitySortDir() === -1"
-                            [class.pi-sort-amount-up-alt]="entitySortCol() === 'kills' && entitySortDir() === 1"
-                          ></i>
-                        </th>
-                        <th class="col-num col-sortable" (click)="sortEntities('dmgOut')">
-                          Out Dmg
-                          <i class="pi"
-                            [class.pi-sort-alt]="entitySortCol() !== 'dmgOut'"
-                            [class.pi-sort-amount-down]="entitySortCol() === 'dmgOut' && entitySortDir() === -1"
-                            [class.pi-sort-amount-up-alt]="entitySortCol() === 'dmgOut' && entitySortDir() === 1"
-                          ></i>
-                        </th>
-                        <th class="col-num col-sortable" (click)="sortEntities('dmgIn')">
-                          Inc Dmg
-                          <i class="pi"
-                            [class.pi-sort-alt]="entitySortCol() !== 'dmgIn'"
-                            [class.pi-sort-amount-down]="entitySortCol() === 'dmgIn' && entitySortDir() === -1"
-                            [class.pi-sort-amount-up-alt]="entitySortCol() === 'dmgIn' && entitySortDir() === 1"
-                          ></i>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (row of entityRows(); track row.name) {
-                        <tr>
-                          <td class="col-name">{{ row.name }}</td>
-                          <td class="col-num" [class.val-kill]="row.kills > 0">{{ row.kills || '—' }}</td>
-                          <td class="col-num" [class.val-out]="row.dmgOut > 0">{{ row.dmgOut > 0 ? (row.dmgOut | number) : '—' }}</td>
-                          <td class="col-num" [class.val-in]="row.dmgIn > 0">{{ row.dmgIn > 0 ? (row.dmgIn | number) : '—' }}</td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
+                <ng-container *ngTemplateOutlet="entityTableTemplate"></ng-container>
               }
             </p-tabpanel>
-
           </p-tabpanels>
         </p-tabs>
       </p-accordioncontent>
     </p-accordionpanel>
   </p-accordion>
 
+  <ng-template #entityTableTemplate>
+    <div class="entity-scroll">
+      <table class="entity-table">
+        <thead>
+          <tr>
+            <th class="col-name">Entity</th>
+            <th class="col-num col-sortable" (click)="sortEntities('kills')">
+              Kills
+              <i class="pi"
+                [class.pi-sort-alt]="entitySortCol() !== 'kills'"
+                [class.pi-sort-amount-down]="entitySortCol() === 'kills' && entitySortDir() === -1"
+                [class.pi-sort-amount-up-alt]="entitySortCol() === 'kills' && entitySortDir() === 1"
+              ></i>
+            </th>
+            <th class="col-num col-sortable" (click)="sortEntities('dmgOut')">
+              Out Dmg
+              <i class="pi"
+                [class.pi-sort-alt]="entitySortCol() !== 'dmgOut'"
+                [class.pi-sort-amount-down]="entitySortCol() === 'dmgOut' && entitySortDir() === -1"
+                [class.pi-sort-amount-up-alt]="entitySortCol() === 'dmgOut' && entitySortDir() === 1"
+              ></i>
+            </th>
+            <th class="col-num col-sortable" (click)="sortEntities('dmgIn')">
+              Inc Dmg
+              <i class="pi"
+                [class.pi-sort-alt]="entitySortCol() !== 'dmgIn'"
+                [class.pi-sort-amount-down]="entitySortCol() === 'dmgIn' && entitySortDir() === -1"
+                [class.pi-sort-amount-up-alt]="entitySortCol() === 'dmgIn' && entitySortDir() === 1"
+              ></i>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of entityRows(); track row.name) {
+            <tr>
+              <td class="col-name">{{ row.name }}</td>
+              <td class="col-num" [class.val-kill]="row.kills > 0">{{ row.kills || '—' }}</td>
+              <td class="col-num" [class.val-out]="row.dmgOut > 0">{{ row.dmgOut > 0 ? (row.dmgOut | number) : '—' }}</td>
+              <td class="col-num" [class.val-in]="row.dmgIn > 0">{{ row.dmgIn > 0 ? (row.dmgIn | number) : '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </ng-template>
 </p-card>

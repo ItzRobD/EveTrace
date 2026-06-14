@@ -167,6 +167,39 @@
   }
 }
 
+/* Combat tab split layout */
+.combat-tab-split {
+  display: flex;
+  gap: 1.5rem;
+
+  .feed-scroll {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .totals-sidebar {
+    width: 320px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--p-surface-border);
+    padding-left: 1rem;
+  }
+}
+
+@media (max-width: 1100px) {
+  .combat-tab-split {
+    flex-direction: column;
+    gap: 1rem;
+
+    .totals-sidebar {
+      width: 100%;
+      border-left: none;
+      border-top: 1px solid var(--p-surface-border);
+      padding-left: 0;
+      padding-top: 1rem;
+    }
+  }
+}
+
 .empty-feed {
   padding: 0.75rem 0;
   color: var(--p-text-muted-color);

@@ -5,7 +5,7 @@ import {
   input,
   signal,
 } from '@angular/core';
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ChartOptions } from 'chart.js';
@@ -55,6 +55,7 @@ interface FeedAllEntry {
     Card,
     DatePipe,
     DecimalPipe,
+    NgTemplateOutlet,
     FormsModule,
     RouterLink,
     Slider,
