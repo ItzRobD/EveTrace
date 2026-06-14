@@ -22,11 +22,19 @@ type WatcherRestarter interface {
 	Restart(newLogDir string)
 }
 
+// Flusher is satisfied by repo.EventBuffer — it exposes the pending-write state
+// and lets the API force an immediate flush.
+type Flusher interface {
+	RequestFlush(ctx context.Context) (int, error)
+	Stats() (pending int, secondsToNextFlush int)
+}
+
 type handler struct {
 	db         *sql.DB
 	hub        *Hub
 	ctx        context.Context
 	watcherMgr WatcherRestarter
+	flusher    Flusher
 }
 
 var upgrader = websocket.Upgrader{
@@ -243,11 +251,31 @@ func (h *handler) getLogDirPresets(c *gin.Context) {
 // ── status / config ───────────────────────────────────────────────────────────
 
 type statusResponse struct {
-	LogDir          string `json:"logDir"`
-	MinDate         string `json:"minDate"`
-	EventsProcessed int64  `json:"eventsProcessed"`
-	SessionsOpened  int64  `json:"sessionsOpened"`
-	WSClients       int32  `json:"wsClients"`
+	LogDir             string `json:"logDir"`
+	MinDate            string `json:"minDate"`
+	EventsProcessed    int64  `json:"eventsProcessed"`
+	SessionsOpened     int64  `json:"sessionsOpened"`
+	WSClients          int32  `json:"wsClients"`
+	PendingEvents      int    `json:"pendingEvents"`
+	SecondsToNextFlush int    `json:"secondsToNextFlush"`
+}
+
+// statusPayload assembles the current status snapshot. logDir is passed in since
+// callers source it differently (live watcher dir vs. the value just persisted).
+func (h *handler) statusPayload(logDir string) statusResponse {
+	var pending, nextFlush int
+	if h.flusher != nil {
+		pending, nextFlush = h.flusher.Stats()
+	}
+	return statusResponse{
+		LogDir:             logDir,
+		MinDate:            appconfig.Get().MinDate,
+		EventsProcessed:    metrics.EventsProcessed.Load(),
+		SessionsOpened:     metrics.SessionsOpened.Load(),
+		WSClients:          metrics.WSClients.Load(),
+		PendingEvents:      pending,
+		SecondsToNextFlush: nextFlush,
+	}
 }
 
 func (h *handler) getStatus(c *gin.Context) {
@@ -255,14 +283,27 @@ func (h *handler) getStatus(c *gin.Context) {
 	if h.watcherMgr != nil {
 		logDir = h.watcherMgr.LogDir()
 	}
-	cfg := appconfig.Get()
-	c.JSON(http.StatusOK, statusResponse{
-		LogDir:          logDir,
-		MinDate:         cfg.MinDate,
-		EventsProcessed: metrics.EventsProcessed.Load(),
-		SessionsOpened:  metrics.SessionsOpened.Load(),
-		WSClients:       metrics.WSClients.Load(),
-	})
+	c.JSON(http.StatusOK, h.statusPayload(logDir))
+}
+
+// flushEvents forces buffered events to be written to the database immediately,
+// rather than waiting for the periodic flush.
+func (h *handler) flushEvents(c *gin.Context) {
+	if h.flusher == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "flusher not available"})
+		return
+	}
+	n, err := h.flusher.RequestFlush(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	var logDir string
+	if h.watcherMgr != nil {
+		logDir = h.watcherMgr.LogDir()
+	}
+	resp := h.statusPayload(logDir)
+	c.JSON(http.StatusOK, gin.H{"flushed": n, "status": resp})
 }
 
 func (h *handler) setMinDate(c *gin.Context) {
@@ -291,14 +332,7 @@ func (h *handler) setMinDate(c *gin.Context) {
 		h.watcherMgr.Restart(h.watcherMgr.LogDir())
 	}
 
-	cfg := appconfig.Get()
-	c.JSON(http.StatusOK, statusResponse{
-		LogDir:          cfg.LogDir,
-		MinDate:         cfg.MinDate,
-		EventsProcessed: metrics.EventsProcessed.Load(),
-		SessionsOpened:  metrics.SessionsOpened.Load(),
-		WSClients:       metrics.WSClients.Load(),
-	})
+	c.JSON(http.StatusOK, h.statusPayload(appconfig.Get().LogDir))
 }
 
 func (h *handler) setLogDir(c *gin.Context) {
@@ -318,14 +352,7 @@ func (h *handler) setLogDir(c *gin.Context) {
 		logger.Error("persist logDir failed", "err", err)
 	}
 	h.watcherMgr.Restart(body.LogDir)
-	cfg := appconfig.Get()
-	c.JSON(http.StatusOK, statusResponse{
-		LogDir:          body.LogDir,
-		MinDate:         cfg.MinDate,
-		EventsProcessed: metrics.EventsProcessed.Load(),
-		SessionsOpened:  metrics.SessionsOpened.Load(),
-		WSClients:       metrics.WSClients.Load(),
-	})
+	c.JSON(http.StatusOK, h.statusPayload(body.LogDir))
 }
 
 // ── websocket ─────────────────────────────────────────────────────────────────

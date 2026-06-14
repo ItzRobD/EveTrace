@@ -21,7 +21,6 @@ type Deps struct {
 	DB        *sql.DB
 	Hub       *api.Hub
 	Buf       *repo.EventBuffer
-	Register  func(sessionID int32, offsetFn func() int64) // called after session upsert
 	FromStart bool
 }
 
@@ -134,25 +133,25 @@ func (m *Manager) run(ctx context.Context, logDir string) {
 				logger.Error("upsert session", "session", sess.ID, "err", err)
 			}
 
-			if sessionID != 0 {
-				if d.FromStart {
-					if err := repo.ClearSessionEvents(d.DB, sessionID); err != nil {
-						logger.Error("clear session events", "session", sess.ID, "err", err)
-					}
+			if sessionID != 0 && d.FromStart {
+				if err := repo.ClearSessionEvents(d.DB, sessionID); err != nil {
+					logger.Error("clear session events", "session", sess.ID, "err", err)
 				}
-				d.Register(sessionID, sess.CurrentOffset)
 			}
 
 			p := parser.New(sess.Header.Language)
 			go func(s watcher.Session, p *parser.Parser, sid int32) {
 				for l := range s.Lines {
-					for _, ev := range p.Parse(s.ID, l.Text) {
-						ev.Live = l.Live
+					evs := p.Parse(s.ID, l.Text)
+					for i := range evs {
+						evs[i].Live = l.Live
 						metrics.EventsProcessed.Add(1)
-						if sid != 0 {
-							d.Buf.Add(sid, ev)
-						}
-						d.Hub.Send(ev)
+						d.Hub.Send(evs[i])
+					}
+					// Buffer the whole line's events with its offset atomically so
+					// the checkpointed position stays consistent with the DB.
+					if sid != 0 {
+						d.Buf.AddLine(sid, evs, l.Offset)
 					}
 				}
 			}(sess, p, sessionID)

@@ -23,7 +23,7 @@ type Server struct {
 // New builds a Gin router with all routes registered and returns a Server
 // ready to be started with Run. ctx is the server's root context; it is
 // used by background operations such as session replay.
-func New(db *sql.DB, hub *Hub, addr string, ctx context.Context, watcherMgr WatcherRestarter) *Server {
+func New(db *sql.DB, hub *Hub, addr string, ctx context.Context, watcherMgr WatcherRestarter, flusher Flusher) *Server {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
@@ -35,11 +35,12 @@ func New(db *sql.DB, hub *Hub, addr string, ctx context.Context, watcherMgr Watc
 		MaxAge:           12 * time.Hour,
 	}))
 
-	h := &handler{db: db, hub: hub, ctx: ctx, watcherMgr: watcherMgr}
+	h := &handler{db: db, hub: hub, ctx: ctx, watcherMgr: watcherMgr, flusher: flusher}
 
 	apiGrp := r.Group("/api")
 	{
 		apiGrp.GET("/status", h.getStatus)
+		apiGrp.POST("/flush", h.flushEvents)
 		apiGrp.GET("/config/presets", h.getLogDirPresets)
 		apiGrp.POST("/config/logdir", h.setLogDir)
 		apiGrp.POST("/config/mindate", h.setMinDate)

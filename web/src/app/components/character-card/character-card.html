@@ -206,9 +206,9 @@
                         }
                         @case ('mining') {
                           @if (e.residue) {
-                            <span class="tag-residue tag-exceptional"><i class="pi pi-cloud"></i> RESIDUE</span>
+                            <span class="tag-residue"><i class="pi pi-cloud"></i> RESIDUE</span>
                           } @else if (e.critical) {
-                            <p-tag value="CRITICAL" severity="success" icon="pi pi-sparkles" styleClass="tag-exceptional" />
+                            <p-tag value="CRITICAL" severity="success" icon="pi pi-sparkles" />
                           } @else {
                             <p-tag value="MINE" severity="warn" icon="evi evi-asteroid" />
                           }
@@ -280,9 +280,9 @@
                       <div class="feed-entry" [class.residue-entry]="e.residue" [class.critical-entry]="e.critical">
                         <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
                         @if (e.residue) {
-                          <span class="tag-residue tag-exceptional"><i class="pi pi-cloud"></i> RESIDUE</span>
+                          <span class="tag-residue"><i class="pi pi-cloud"></i> RESIDUE</span>
                         } @else if (e.critical) {
-                          <p-tag value="CRITICAL" severity="success" icon="pi pi-exclamation-triangle" styleClass="tag-exceptional" />
+                          <p-tag value="CRITICAL" severity="success" icon="pi pi-exclamation-triangle" />
                         } @else {
                           <p-tag value="MINE" severity="warn" icon="pi pi-circle-fill" />
                         }

@@ -257,7 +257,6 @@
   &.residue-entry  {
     background: rgba(180, 83, 9, 0.12);
     border-radius: var(--p-border-radius-sm);
-    padding-left: 0.35rem;
     color: #b45309;
   }
   &.critical-entry { color: #22c55e; }
@@ -270,20 +269,16 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-
-    &.tag-exceptional {
-      font-size: 0.73rem;
-      font-weight: 700;
-    }
   }
 }
 
-/* Inline residue tag — bypasses PrimeNG severity theming */
+/* Inline residue tag — bypasses PrimeNG severity theming.
+   Matches the dimensions of the MINE p-tag so all feed tags read uniformly. */
 .tag-residue {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.15rem 0.45rem;
+  padding: 0.15rem 0.4rem;
   border-radius: var(--p-border-radius-sm, 4px);
   font-size: 0.65rem;
   font-weight: 600;
@@ -293,11 +288,6 @@
   flex-shrink: 0;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-
-  &.tag-exceptional {
-    font-size: 0.73rem;
-    font-weight: 700;
-  }
 }
 
 .feed-time {

@@ -10,6 +10,7 @@ import { Tooltip } from 'primeng/tooltip';
 import { Dialog } from 'primeng/dialog';
 import { EventStreamService, ConnectionStatus } from './services/event-stream.service';
 import { ThemeService } from './services/theme.service';
+import { FlushIndicatorComponent } from './components/flush-indicator/flush-indicator';
 
 interface NavItem {
   label: string;
@@ -21,7 +22,7 @@ const MOBILE_BREAKPOINT = '(max-width: 768px)';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Drawer, Button, Tag, Tooltip, Dialog],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Drawer, Button, Tag, Tooltip, Dialog, FlushIndicatorComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

@@ -81,15 +81,16 @@ func GetSessionOffset(db *sql.DB, sessionKey string) (int64, error) {
 	return int64(row.LastByteOffset), nil
 }
 
-// UpdateSessionOffset persists the latest read position for a session.
-// Called by the periodic ticker to checkpoint progress so the tailer can
-// resume from this position after a restart.
-func UpdateSessionOffset(db *sql.DB, sessionID int32, offset int64) error {
+// UpdateSessionOffset persists the latest read position for a session. exec may
+// be a *sql.DB or a *sql.Tx — the buffer flush passes its transaction so the
+// offset is committed atomically with the events parsed up to that position,
+// guaranteeing the persisted offset never runs ahead of (or behind) flushed data.
+func UpdateSessionOffset(exec qrm.Executable, sessionID int32, offset int64) error {
 	_, err := table.Sessions.
 		UPDATE(table.Sessions.LastByteOffset).
 		SET(Int32(int32(offset))).
 		WHERE(table.Sessions.ID.EQ(Int32(sessionID))).
-		Exec(db)
+		Exec(exec)
 	if err != nil {
 		return fmt.Errorf("update offset session %d: %w", sessionID, err)
 	}

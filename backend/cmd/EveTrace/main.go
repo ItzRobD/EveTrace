@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"flag"
 	"fmt"
 	"log"
@@ -72,16 +71,13 @@ func main() {
 	hub := api.NewHub()
 	go hub.Run(ctx.Done())
 
-	reg := newSessionRegistry()
 	buf := repo.NewEventBuffer()
 
-	go buf.Run(ctx, database.DB(), *flushInterval, func(_ int) {
-		reg.checkpoint(database.DB())
-	})
+	go buf.Run(ctx, database.DB(), *flushInterval)
 
 	if *printMode {
-		runPrint(ctx, *logDir, *fromStart, buf, reg)
-		finalFlush(buf, reg)
+		runPrint(ctx, *logDir, *fromStart, buf)
+		finalFlush(buf)
 		return
 	}
 
@@ -89,7 +85,6 @@ func main() {
 		DB:        database.DB(),
 		Hub:       hub,
 		Buf:       buf,
-		Register:  reg.register,
 		FromStart: *fromStart,
 	})
 	if *logDir != "" && appconfig.IsLogDirValid(*logDir) {
@@ -108,7 +103,7 @@ func main() {
 		}()
 	}
 
-	srv := api.New(database.DB(), hub, *addr, ctx, mgr)
+	srv := api.New(database.DB(), hub, *addr, ctx, mgr, buf)
 	go func() {
 		if err := srv.Run(ctx); err != nil {
 			logger.Error("http server", "err", err)
@@ -124,22 +119,22 @@ func main() {
 	// If tray is a no-op, wait for the context to be cancelled (Ctrl-C / SIGTERM).
 	<-ctx.Done()
 
-	finalFlush(buf, reg)
+	finalFlush(buf)
 }
 
-func finalFlush(buf *repo.EventBuffer, reg *sessionRegistry) {
+func finalFlush(buf *repo.EventBuffer) {
 	logger.Info("flushing event buffer", "buffered", buf.Len(), "totalAdded", buf.TotalAdded())
+	// Flush persists session offsets in the same transaction as the events.
 	if n, err := buf.Flush(database.DB()); err != nil {
 		logger.Error("final buffer flush", "err", err)
 	} else {
 		logger.Info("final buffer flush complete", "written", n)
-		reg.checkpoint(database.DB())
 	}
 }
 
 // runPrint is a debug mode that writes parsed events to stdout without starting
 // the HTTP server. It mirrors the watcher_manager session loop but with fmt.Printf output.
-func runPrint(ctx context.Context, logDir string, fromStart bool, buf *repo.EventBuffer, reg *sessionRegistry) {
+func runPrint(ctx context.Context, logDir string, fromStart bool, buf *repo.EventBuffer) {
 	var offsetFn watcher.OffsetFn
 	if !fromStart {
 		offsetFn = func(id string) int64 {
@@ -205,13 +200,10 @@ func runPrint(ctx context.Context, logDir string, fromStart bool, buf *repo.Even
 			if err != nil {
 				logger.Error("upsert session", "session", sess.ID, "err", err)
 			}
-			if sessionID != 0 {
-				if fromStart {
-					if err := repo.ClearSessionEvents(database.DB(), sessionID); err != nil {
-						logger.Error("clear session events", "session", sess.ID, "err", err)
-					}
+			if sessionID != 0 && fromStart {
+				if err := repo.ClearSessionEvents(database.DB(), sessionID); err != nil {
+					logger.Error("clear session events", "session", sess.ID, "err", err)
 				}
-				reg.register(sessionID, sess.CurrentOffset)
 			}
 
 			p := parser.New(sess.Header.Language)
@@ -219,12 +211,13 @@ func runPrint(ctx context.Context, logDir string, fromStart bool, buf *repo.Even
 			go func(s watcher.Session, p *parser.Parser, sid int32) {
 				defer wg.Done()
 				for l := range s.Lines {
-					for _, ev := range p.Parse(s.ID, l.Text) {
-						ev.Live = l.Live
-						printEvent(ev)
-						if sid != 0 {
-							buf.Add(sid, ev)
-						}
+					evs := p.Parse(s.ID, l.Text)
+					for i := range evs {
+						evs[i].Live = l.Live
+						printEvent(evs[i])
+					}
+					if sid != 0 {
+						buf.AddLine(sid, evs, l.Offset)
 					}
 				}
 			}(sess, p, sessionID)
@@ -297,32 +290,5 @@ func printEvent(ev core.Event) {
 			liveTag, char, ts, r.Launcher, r.Charge, r.Seconds)
 	case core.EventMiningFull:
 		fmt.Printf("%s [%s] %s  MINE  FULL  %s\n", liveTag, char, ts, ev.MiningFull.Module)
-	}
-}
-
-// sessionRegistry tracks the CurrentOffset function for each active session so
-// that offsets can be checkpointed to the DB after every successful flush.
-type sessionRegistry struct {
-	mu       sync.RWMutex
-	sessions map[int32]func() int64
-}
-
-func newSessionRegistry() *sessionRegistry {
-	return &sessionRegistry{sessions: make(map[int32]func() int64)}
-}
-
-func (r *sessionRegistry) register(sid int32, fn func() int64) {
-	r.mu.Lock()
-	r.sessions[sid] = fn
-	r.mu.Unlock()
-}
-
-func (r *sessionRegistry) checkpoint(db *sql.DB) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	for sid, fn := range r.sessions {
-		if err := repo.UpdateSessionOffset(db, sid, fn()); err != nil {
-			logger.Error("checkpoint session offset", "sid", sid, "err", err)
-		}
 	}
 }

@@ -85,6 +85,35 @@
   </div>
 </section>
 
+<!-- Database buffer -->
+@if (status(); as s) {
+  <section class="config-section">
+    <h3>Database Buffer</h3>
+    <p class="section-hint">
+      Parsed events are written to the database in batches (and automatically once a
+      large backlog accumulates). Force a write now instead of waiting for the timer.
+    </p>
+    <div class="status-row">
+      <span class="status-detail">
+        <strong>{{ s.pendingEvents | number }}</strong> event(s) buffered
+        @if (s.pendingEvents > 0) {
+          · next write in {{ s.secondsToNextFlush }}s
+        }
+      </span>
+    </div>
+    <p-button
+      [label]="flushingBuffer() ? 'Flushing…' : 'Flush buffered events now'"
+      icon="pi pi-save"
+      [loading]="flushingBuffer()"
+      [disabled]="s.pendingEvents === 0"
+      (onClick)="flushBuffer()"
+    />
+    @if (flushBufferMsg()) {
+      <p class="section-hint">{{ flushBufferMsg() }}</p>
+    }
+  </section>
+}
+
 <!-- Metrics -->
 @if (status()) {
   <section class="config-section">
@@ -97,6 +126,10 @@
       <div class="metric-card">
         <span class="metric-label">Sessions Opened</span>
         <span class="metric-value">{{ status()!.sessionsOpened | number }}</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Pending Write</span>
+        <span class="metric-value">{{ status()!.pendingEvents | number }}</span>
       </div>
     </div>
   </section>

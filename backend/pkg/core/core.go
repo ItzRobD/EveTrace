@@ -42,6 +42,10 @@ func (h SessionHeader) SessionID() string {
 type Line struct {
 	Text string
 	Live bool
+	// Offset is the byte position in the file immediately after this line — the
+	// position a tailer would resume from. Used to checkpoint ingest progress
+	// atomically with the events parsed from this line.
+	Offset int64
 }
 
 type Event struct {

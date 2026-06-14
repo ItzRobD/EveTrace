@@ -21,6 +21,8 @@ export interface StatusResponse {
   eventsProcessed: number;
   sessionsOpened: number;
   wsClients: number;
+  pendingEvents: number;
+  secondsToNextFlush: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -86,6 +88,13 @@ export class ApiService {
 
   getStatus(): Observable<StatusResponse> {
     return this.http.get<StatusResponse>(`${this.baseURL}/status`);
+  }
+
+  flushEvents(): Observable<{ flushed: number; status: StatusResponse }> {
+    return this.http.post<{ flushed: number; status: StatusResponse }>(
+      `${this.baseURL}/flush`,
+      {},
+    );
   }
 
   getLogDirPresets(): Observable<{ label: string; path: string }[]> {

@@ -28,37 +28,128 @@ type EventBuffer struct {
 	travel     []genmodel.TravelEvents
 	cap        []genmodel.CapEvents
 	reload     []genmodel.ReloadEvents
-	totalAdded int64 // diagnostic: cumulative Add calls across all flushes
+	totalAdded int64 // diagnostic: cumulative events added across all flushes
+
+	// offsets holds the highest byte offset buffered per session. Flushed in the
+	// same transaction as the events so the persisted resume position always
+	// matches what's actually in the database.
+	offsets map[int32]int64
+
+	// Flush scheduling state, read by Stats for the UI. interval/lastFlush are
+	// set once Run starts and updated on every flush so the UI can show an
+	// accurate countdown to the next write.
+	interval  time.Duration
+	lastFlush time.Time
+	triggers  chan flushReq
+}
+
+// flushThreshold triggers an out-of-band flush once this many events are
+// buffered, so large historical reparses persist promptly instead of waiting
+// for the full flush interval.
+const flushThreshold = 5000
+
+// flushReq asks Run to perform a flush. resp, if non-nil, receives the number of
+// rows written (used by RequestFlush for synchronous, user-initiated flushes).
+type flushReq struct {
+	resp chan int
 }
 
 // NewEventBuffer returns an empty EventBuffer ready for use.
-func NewEventBuffer() *EventBuffer { return &EventBuffer{} }
+func NewEventBuffer() *EventBuffer {
+	return &EventBuffer{
+		offsets:  make(map[int32]int64),
+		triggers: make(chan flushReq, 1),
+	}
+}
 
-// Add appends a parsed event to the appropriate in-memory slice.
+// AddLine buffers all events parsed from a single log line together with that
+// line's end offset, as one atomic unit. Recording the events and the offset
+// under a single lock means a concurrent Flush sees either the whole line or
+// none of it — so the checkpointed offset can never split a line's events.
+//
+// offset advances even when evs is empty (e.g. a non-event line), so the tailer
+// won't needlessly re-read those lines after a restart.
 // Safe to call from multiple goroutines simultaneously.
-func (b *EventBuffer) Add(sessionID int32, ev core.Event) {
+func (b *EventBuffer) AddLine(sessionID int32, evs []core.Event, offset int64) {
+	b.mu.Lock()
+
+	for _, ev := range evs {
+		switch ev.Type {
+		case core.EventCombat:
+			b.combat = append(b.combat, buildCombat(sessionID, ev.Timestamp, ev.Combat))
+		case core.EventKill:
+			b.kill = append(b.kill, buildKill(sessionID, ev.Timestamp, ev.Kill))
+		case core.EventMining:
+			b.mining = append(b.mining, buildMining(sessionID, ev.Timestamp, ev.Mining))
+		case core.EventMiningFull:
+			b.miningFull = append(b.miningFull, buildMiningFull(sessionID, ev.Timestamp, ev.MiningFull))
+		case core.EventNav:
+			b.travel = append(b.travel, buildTravel(sessionID, ev.Timestamp, ev.Nav))
+		case core.EventCapStarvation:
+			b.cap = append(b.cap, buildCap(sessionID, ev.Timestamp, ev.CapStarvation))
+		case core.EventReload:
+			b.reload = append(b.reload, buildReload(sessionID, ev.Timestamp, ev.Reload))
+		default:
+			continue
+		}
+		b.totalAdded++
+	}
+	if offset > b.offsets[sessionID] {
+		b.offsets[sessionID] = offset
+	}
+	pending := len(b.combat) + len(b.kill) + len(b.mining) + len(b.miningFull) +
+		len(b.travel) + len(b.cap) + len(b.reload)
+	b.mu.Unlock()
+
+	if pending >= flushThreshold {
+		b.trigger(nil) // non-blocking; a flush already queued is fine
+	}
+}
+
+// trigger asks Run to flush. Non-blocking when resp is nil (size-based flushes):
+// if a flush is already queued it's simply skipped.
+func (b *EventBuffer) trigger(resp chan int) {
+	select {
+	case b.triggers <- flushReq{resp: resp}:
+	default:
+		if resp != nil {
+			resp <- 0
+		}
+	}
+}
+
+// RequestFlush enqueues a user-initiated flush and waits for it to complete,
+// returning the number of rows written. Requires Run to be active.
+func (b *EventBuffer) RequestFlush(ctx context.Context) (int, error) {
+	resp := make(chan int, 1)
+	select {
+	case b.triggers <- flushReq{resp: resp}:
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
+	select {
+	case n := <-resp:
+		return n, nil
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
+}
+
+// Stats reports the current pending event count and seconds until the next
+// scheduled flush, for display in the UI.
+func (b *EventBuffer) Stats() (pending int, secondsToNextFlush int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-
-	switch ev.Type {
-	case core.EventCombat:
-		b.combat = append(b.combat, buildCombat(sessionID, ev.Timestamp, ev.Combat))
-	case core.EventKill:
-		b.kill = append(b.kill, buildKill(sessionID, ev.Timestamp, ev.Kill))
-	case core.EventMining:
-		b.mining = append(b.mining, buildMining(sessionID, ev.Timestamp, ev.Mining))
-	case core.EventMiningFull:
-		b.miningFull = append(b.miningFull, buildMiningFull(sessionID, ev.Timestamp, ev.MiningFull))
-	case core.EventNav:
-		b.travel = append(b.travel, buildTravel(sessionID, ev.Timestamp, ev.Nav))
-	case core.EventCapStarvation:
-		b.cap = append(b.cap, buildCap(sessionID, ev.Timestamp, ev.CapStarvation))
-	case core.EventReload:
-		b.reload = append(b.reload, buildReload(sessionID, ev.Timestamp, ev.Reload))
-	default:
-		return
+	pending = len(b.combat) + len(b.kill) + len(b.mining) + len(b.miningFull) +
+		len(b.travel) + len(b.cap) + len(b.reload)
+	if b.interval <= 0 {
+		return pending, 0
 	}
-	b.totalAdded++
+	remaining := b.interval - time.Since(b.lastFlush)
+	if remaining < 0 {
+		remaining = 0
+	}
+	return pending, int(remaining.Seconds())
 }
 
 // TotalAdded returns the cumulative number of events added since the buffer was created.
@@ -86,6 +177,7 @@ func (b *EventBuffer) Flush(db *sql.DB) (int, error) {
 	b.mu.Lock()
 	combat, kill, mining, miningFull, travel, cap, reload :=
 		b.combat, b.kill, b.mining, b.miningFull, b.travel, b.cap, b.reload
+	offsets := b.offsets
 	b.combat = nil
 	b.kill = nil
 	b.mining = nil
@@ -93,11 +185,12 @@ func (b *EventBuffer) Flush(db *sql.DB) (int, error) {
 	b.travel = nil
 	b.cap = nil
 	b.reload = nil
+	b.offsets = make(map[int32]int64)
 	b.mu.Unlock()
 
 	total := len(combat) + len(kill) + len(mining) + len(miningFull) +
 		len(travel) + len(cap) + len(reload)
-	if total == 0 {
+	if total == 0 && len(offsets) == 0 {
 		return 0, nil
 	}
 
@@ -129,6 +222,14 @@ func (b *EventBuffer) Flush(db *sql.DB) (int, error) {
 		return 0, err
 	}
 
+	// Persist resume offsets in the same transaction as the events, so a session's
+	// stored offset is always exactly consistent with what's been written.
+	for sid, off := range offsets {
+		if err := UpdateSessionOffset(tx, sid, off); err != nil {
+			return 0, err
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return 0, wrap("flush commit", err)
 	}
@@ -136,28 +237,47 @@ func (b *EventBuffer) Flush(db *sql.DB) (int, error) {
 }
 
 // Run starts a ticker that flushes the buffer every interval until ctx is
-// cancelled. onFlush is called after each successful periodic flush with the
-// number of rows written; use it to checkpoint session offsets. Pass nil if no
-// post-flush action is needed. The caller is responsible for a final flush
-// after Run returns.
-func (b *EventBuffer) Run(ctx context.Context, db *sql.DB, interval time.Duration, onFlush func(n int)) {
+// cancelled. Session offsets are persisted atomically inside each flush, so no
+// post-flush checkpoint callback is needed. The caller is responsible for a
+// final flush after Run returns.
+func (b *EventBuffer) Run(ctx context.Context, db *sql.DB, interval time.Duration) {
+	b.mu.Lock()
+	b.interval = interval
+	b.lastFlush = time.Now()
+	b.mu.Unlock()
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+
+	// doFlush performs a flush, realigns the interval countdown to this moment,
+	// and reports the row count back to a synchronous requester when present.
+	doFlush := func(resp chan int) {
+		n, err := b.Flush(db)
+		b.mu.Lock()
+		b.lastFlush = time.Now()
+		b.mu.Unlock()
+		ticker.Reset(interval)
+		if err != nil {
+			log.Printf("event buffer flush: %v", err)
+			if resp != nil {
+				resp <- 0
+			}
+			return
+		}
+		if n > 0 {
+			log.Printf("event buffer: flushed %d events", n)
+		}
+		if resp != nil {
+			resp <- n
+		}
+	}
 
 	for {
 		select {
 		case <-ticker.C:
-			n, err := b.Flush(db)
-			if err != nil {
-				log.Printf("event buffer flush: %v", err)
-				continue
-			}
-			if n > 0 {
-				log.Printf("event buffer: flushed %d events", n)
-				if onFlush != nil {
-					onFlush(n)
-				}
-			}
+			doFlush(nil)
+		case req := <-b.triggers:
+			doFlush(req.resp)
 		case <-ctx.Done():
 			return
 		}

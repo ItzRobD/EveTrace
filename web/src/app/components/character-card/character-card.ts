@@ -25,6 +25,7 @@ import {
   ISK_WINDOW_MS,
   MINING_WINDOW_MS,
 } from '../../models/character-live-state';
+import { prewarmChartMarkers } from '../../models/chart-markers';
 
 interface FeedAllEntry {
   timestamp: string;
@@ -84,6 +85,14 @@ export class CharacterCardComponent {
   protected readonly showMiningStats = signal(true);
   protected readonly showEventsTable = signal(true);
 
+  // Flips once the PrimeIcons font is loaded so the chart recomputes with the
+  // real glyph markers rather than the named-shape fallbacks.
+  private readonly markersReady = signal(false);
+
+  constructor() {
+    prewarmChartMarkers().then(() => this.markersReady.set(true));
+  }
+
   // Narrow intermediates — Angular's computed() uses === equality, so these only
   // propagate when the specific array reference changes, not on every event type.
   private readonly _dpsBuckets = computed(() => this.state().dpsBuckets);
@@ -102,9 +111,10 @@ export class CharacterCardComponent {
     return buckets.filter(b => b.time >= latestTime - windowMs);
   });
 
-  protected readonly displayedChartData = computed(() =>
-    buildChartData(this.windowedBuckets(), this._killMarkers(), this._capMarkers(), this._criticalMarkers()),
-  );
+  protected readonly displayedChartData = computed(() => {
+    this.markersReady(); // re-render markers once the icon font is available
+    return buildChartData(this.windowedBuckets(), this._killMarkers(), this._capMarkers(), this._criticalMarkers());
+  });
 
   protected get chartWindowValue(): number { return this.chartWindowMinutes(); }
   protected set chartWindowValue(v: number) { this.chartWindowMinutes.set(v); }

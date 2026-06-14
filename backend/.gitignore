@@ -120,3 +120,4 @@ fabric.properties
 
 # Scripts
 *.py
+/web/dist/

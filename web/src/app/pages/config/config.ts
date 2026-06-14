@@ -37,6 +37,8 @@ export class ConfigComponent implements OnInit, OnDestroy {
   protected readonly savingMinDate = signal(false);
   protected readonly saveError = signal('');
   protected readonly saveMinDateError = signal('');
+  protected readonly flushingBuffer = signal(false);
+  protected readonly flushBufferMsg = signal('');
   protected readonly presets = signal<{ label: string; path: string }[]>([]);
 
   protected readonly connectionStatus = toSignal(this.eventStream.status$, {
@@ -132,6 +134,22 @@ export class ConfigComponent implements OnInit, OnDestroy {
       error: () => {
         this.saveMinDateError.set('Failed to update start date.');
         this.savingMinDate.set(false);
+      },
+    });
+  }
+
+  protected flushBuffer(): void {
+    this.flushingBuffer.set(true);
+    this.flushBufferMsg.set('');
+    this.api.flushEvents().subscribe({
+      next: r => {
+        this.status.set(r.status);
+        this.flushBufferMsg.set(`Wrote ${r.flushed.toLocaleString()} event(s) to the database.`);
+        this.flushingBuffer.set(false);
+      },
+      error: () => {
+        this.flushBufferMsg.set('Failed to flush buffered events.');
+        this.flushingBuffer.set(false);
       },
     });
   }

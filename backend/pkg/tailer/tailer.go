@@ -126,13 +126,14 @@ func (t *Tailer) readLines(ctx context.Context, r *bufio.Reader, cr *countingRea
 
 		// Consumed position = bytes bufio has pulled from the file minus
 		// what it has buffered but not yet returned to us.
-		t.offset.Store(cr.n - int64(r.Buffered()))
+		pos := cr.n - int64(r.Buffered())
+		t.offset.Store(pos)
 
 		if line == "" {
 			continue
 		}
 		select {
-		case t.lines <- core.Line{Text: line, Live: live}:
+		case t.lines <- core.Line{Text: line, Live: live, Offset: pos}:
 		case <-ctx.Done():
 			return
 		}
