@@ -71,6 +71,14 @@ export const EvePreset = definePreset(Aura, {
           900: '#38424b',
           950: '#232b32',
         },
+        text: {
+          color: '#1b2228',
+          hoverColor: '#0d1216',
+          mutedColor: '#5c6770',
+        },
+        content: {
+          borderColor: '#d2dae0',
+        },
       },
       dark: {
         primary: {
@@ -99,51 +107,113 @@ export const EvePreset = definePreset(Aura, {
           900: '#7a8290',
           950: '#9da4ac',
         },
+        text: {
+          color: '#c2c6ca',
+          hoverColor: '#d0d4d8',
+          mutedColor: '#6e7680',
+        },
+        content: {
+          // Aura's default content.background is {surface.900}, which is bright
+          // under the inverted ramp (e.g. the datepicker panel). Match it to the
+          // form-field fill so overlays read as dark.
+          background: '{surface.300}',
+          hoverBackground: '{surface.400}',
+          borderColor: '#232830',
+          color: '{text.color}',
+          hoverColor: '{text.hover.color}',
+        },
+        // EVE's dark ramp inverts brightness (surface.0 is darkest), so Aura's
+        // defaults — formField {surface.950}, overlay {surface.900} — resolve to
+        // bright fills. Re-point them at the dark end with light text so input
+        // fields, the datepicker, popovers and select panels read as dark.
+        formField: {
+          background: '{surface.300}',
+          filledBackground: '{surface.300}',
+          filledHoverBackground: '{surface.400}',
+          filledFocusBackground: '{surface.400}',
+          borderColor: '{surface.600}',
+          hoverBorderColor: '{surface.700}',
+          color: '{text.color}',
+          placeholderColor: '{text.muted.color}',
+          floatLabelColor: '{text.muted.color}',
+          iconColor: '{text.muted.color}',
+        },
+        overlay: {
+          popover: {
+            background: '{surface.300}',
+            borderColor: '{surface.600}',
+            color: '{text.color}',
+          },
+          select: {
+            background: '{surface.300}',
+            borderColor: '{surface.600}',
+            color: '{text.color}',
+          },
+        },
       },
     },
   },
   components: {
+    // Aura's secondary-button tokens reference {surface.800}/{surface.300} expecting
+    // light-ish fills; EVE's dark ramp inverts brightness (surface.0 is darkest), so
+    // we re-point the dark secondary tokens at the correct shades here instead of
+    // overriding rendered buttons with global !important rules.
+    button: {
+      colorScheme: {
+        dark: {
+          root: {
+            secondary: {
+              background: '{surface.300}',
+              hoverBackground: '{surface.400}',
+              activeBackground: '{surface.400}',
+              borderColor: '{surface.600}',
+              hoverBorderColor: '{surface.600}',
+              activeBorderColor: '{surface.600}',
+              color: '{text.color}',
+              hoverColor: '{text.hover.color}',
+              activeColor: '{text.hover.color}',
+            },
+          },
+          text: {
+            secondary: {
+              color: '{text.color}',
+              hoverBackground: '{surface.200}',
+              activeBackground: '{surface.300}',
+            },
+          },
+        },
+      },
+    },
     tooltip: {
       root: {
         borderRadius: '{borderRadius.xs}',
       },
       colorScheme: {
+        // Light mode: a dark tooltip with light text.
         light: {
           root: {
             background: '{surface.950}',
             color: '{surface.0}',
           },
         },
+        // Dark mode: a slightly-elevated dark fill with light text, so it lifts
+        // off the panels without going bright.
         dark: {
           root: {
-            background: '{surface.0}',
-            color: '#ffffff',
+            background: '{surface.400}',
+            color: '{text.color}',
           },
         },
       },
     },
+    // Popover colors come from the semantic overlay.popover tokens above; only
+    // the structural tweaks (sharp corners, zero padding) are set here.
     popover: {
       root: {
         borderRadius: '{borderRadius.xs}',
       },
       content: {
         padding: '0',
-      },
-      colorScheme: {
-        light: {
-          root: {
-            background: '{surface.0}',
-            color: '{surface.700}',
-            borderColor: '{surface.200}',
-          },
-        },
-        dark: {
-          root: {
-            background: '{surface.0}',
-            color: '#ffffff',
-            borderColor: '{surface.200}',
-          },
-        },
       },
     },
   },

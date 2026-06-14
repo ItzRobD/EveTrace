@@ -13,16 +13,10 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
 import { InputText } from 'primeng/inputtext';
 import { Button } from 'primeng/button';
+import { DatePicker } from 'primeng/datepicker';
 import { Tag } from 'primeng/tag';
-import { ApiService } from '../../services/api.service';
+import { ApiService, StatusResponse } from '../../services/api.service';
 import { EventStreamService, ConnectionStatus } from '../../services/event-stream.service';
-
-interface Status {
-  logDir: string;
-  eventsProcessed: number;
-  sessionsOpened: number;
-  wsClients: number;
-}
 
 @Component({
   standalone: true,
@@ -30,16 +24,19 @@ interface Status {
   templateUrl: './config.html',
   styleUrl: './config.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Button, DecimalPipe, FormsModule, InputText, Tag],
+  imports: [Button, DecimalPipe, FormsModule, InputText, Tag, DatePicker],
 })
 export class ConfigComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly eventStream = inject(EventStreamService);
 
-  protected readonly status = signal<Status | null>(null);
+  protected readonly status = signal<StatusResponse | null>(null);
   protected readonly logDirInput = signal('');
+  protected readonly minDateValue = signal<Date | null>(null);
   protected readonly saving = signal(false);
+  protected readonly savingMinDate = signal(false);
   protected readonly saveError = signal('');
+  protected readonly saveMinDateError = signal('');
   protected readonly presets = signal<{ label: string; path: string }[]>([]);
 
   protected readonly connectionStatus = toSignal(this.eventStream.status$, {
@@ -68,6 +65,17 @@ export class ConfigComponent implements OnInit, OnDestroy {
           if (!this.saving()) {
             this.logDirInput.set(s.logDir);
           }
+          if (!this.savingMinDate()) {
+            if (s.minDate) {
+              this.minDateValue.set(new Date(s.minDate));
+            } else {
+              // Default: Today - 14 days
+              const d = new Date();
+              d.setDate(d.getDate() - 14);
+              d.setHours(0, 0, 0, 0);
+              this.minDateValue.set(d);
+            }
+          }
         },
       });
 
@@ -95,6 +103,35 @@ export class ConfigComponent implements OnInit, OnDestroy {
       error: () => {
         this.saveError.set('Failed to update log directory.');
         this.saving.set(false);
+      },
+    });
+  }
+
+  protected setQuickMinDate(days: number | null): void {
+    if (days === null) {
+      // "All time" — clear the filter entirely (no minimum date).
+      this.minDateValue.set(null);
+    } else {
+      const d = new Date();
+      d.setDate(d.getDate() - days);
+      d.setHours(0, 0, 0, 0);
+      this.minDateValue.set(d);
+    }
+  }
+
+  protected saveMinDate(): void {
+    const date = this.minDateValue();
+    this.savingMinDate.set(true);
+    this.saveMinDateError.set('');
+    // An empty string clears the filter (parse all logs regardless of date).
+    this.api.setMinDate(date ? date.toISOString() : '').subscribe({
+      next: s => {
+        this.status.set(s);
+        this.savingMinDate.set(false);
+      },
+      error: () => {
+        this.saveMinDateError.set('Failed to update start date.');
+        this.savingMinDate.set(false);
       },
     });
   }

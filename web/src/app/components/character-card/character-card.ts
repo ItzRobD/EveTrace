@@ -160,6 +160,45 @@ export class CharacterCardComponent {
     });
   });
 
+  // Running totals across all entities — shown as a footer row beneath the table.
+  protected readonly entityTotals = computed(() =>
+    this.entityRows().reduce(
+      (acc, r) => {
+        acc.kills += r.kills;
+        acc.dmgOut += r.dmgOut;
+        acc.dmgIn += r.dmgIn;
+        return acc;
+      },
+      { kills: 0, dmgOut: 0, dmgIn: 0 },
+    ),
+  );
+
+  private readonly _oreStats = computed(() => this.state().oreStats);
+
+  // Session-wide per-ore-type aggregation (not capped by the live feed), sorted by
+  // units descending with residue pinned to the bottom as a loss line.
+  protected readonly oreRows = computed(() =>
+    Object.values(this._oreStats()).sort((a, b) => {
+      if (a.oreType === 'Residue') return 1;
+      if (b.oreType === 'Residue') return -1;
+      return b.amount - a.amount;
+    }),
+  );
+
+  // Totals cover mined ore only — residue is a loss, tracked separately.
+  protected readonly oreTotals = computed(() =>
+    this.oreRows()
+      .filter(r => r.oreType !== 'Residue')
+      .reduce(
+        (acc, r) => {
+          acc.cycles += r.cycles;
+          acc.amount += r.amount;
+          return acc;
+        },
+        { cycles: 0, amount: 0 },
+      ),
+  );
+
   private static readonly MARKER_LABELS = new Set(['Kill', 'Cap Starved', 'Hold Full', 'Critical']);
 
   protected readonly lineChartOptions: ChartOptions<'line'> = {

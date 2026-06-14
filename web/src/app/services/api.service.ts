@@ -15,6 +15,14 @@ interface ApiResponse<T> {
   count: number;
 }
 
+export interface StatusResponse {
+  logDir: string;
+  minDate: string;
+  eventsProcessed: number;
+  sessionsOpened: number;
+  wsClients: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private readonly http = inject(HttpClient);
@@ -76,10 +84,8 @@ export class ApiService {
     return this.unwrap(this.http.get<ApiResponse<ReloadEvent[]>>(`${this.baseURL}/sessions/${sessionId}/reload`));
   }
 
-  getStatus(): Observable<{ logDir: string; eventsProcessed: number; sessionsOpened: number; wsClients: number }> {
-    return this.http.get<{ logDir: string; eventsProcessed: number; sessionsOpened: number; wsClients: number }>(
-      `${this.baseURL}/status`,
-    );
+  getStatus(): Observable<StatusResponse> {
+    return this.http.get<StatusResponse>(`${this.baseURL}/status`);
   }
 
   getLogDirPresets(): Observable<{ label: string; path: string }[]> {
@@ -88,10 +94,17 @@ export class ApiService {
     ).pipe(map(r => r.presets));
   }
 
-  setLogDir(logDir: string): Observable<{ logDir: string; eventsProcessed: number; sessionsOpened: number; wsClients: number }> {
-    return this.http.post<{ logDir: string; eventsProcessed: number; sessionsOpened: number; wsClients: number }>(
+  setLogDir(logDir: string): Observable<StatusResponse> {
+    return this.http.post<StatusResponse>(
       `${this.baseURL}/config/logdir`,
       { logDir },
+    );
+  }
+
+  setMinDate(minDate: string): Observable<StatusResponse> {
+    return this.http.post<StatusResponse>(
+      `${this.baseURL}/config/mindate`,
+      { minDate },
     );
   }
 

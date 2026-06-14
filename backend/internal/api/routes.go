@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
 	"EveTrace/internal/appconfig"
 	"EveTrace/internal/database/repo"
+	"EveTrace/internal/logger"
 	"EveTrace/internal/metrics"
 )
 
@@ -242,6 +244,7 @@ func (h *handler) getLogDirPresets(c *gin.Context) {
 
 type statusResponse struct {
 	LogDir          string `json:"logDir"`
+	MinDate         string `json:"minDate"`
 	EventsProcessed int64  `json:"eventsProcessed"`
 	SessionsOpened  int64  `json:"sessionsOpened"`
 	WSClients       int32  `json:"wsClients"`
@@ -252,8 +255,46 @@ func (h *handler) getStatus(c *gin.Context) {
 	if h.watcherMgr != nil {
 		logDir = h.watcherMgr.LogDir()
 	}
+	cfg := appconfig.Get()
 	c.JSON(http.StatusOK, statusResponse{
 		LogDir:          logDir,
+		MinDate:         cfg.MinDate,
+		EventsProcessed: metrics.EventsProcessed.Load(),
+		SessionsOpened:  metrics.SessionsOpened.Load(),
+		WSClients:       metrics.WSClients.Load(),
+	})
+}
+
+func (h *handler) setMinDate(c *gin.Context) {
+	var body struct {
+		MinDate string `json:"minDate"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	// An empty MinDate clears the filter; any non-empty value must be RFC3339.
+	if body.MinDate != "" {
+		if _, err := time.Parse(time.RFC3339, body.MinDate); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "minDate must be an RFC3339 timestamp"})
+			return
+		}
+	}
+	if err := appconfig.SetMinDate(body.MinDate); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist minDate"})
+		logger.Error("persist minDate failed", "err", err)
+		return
+	}
+
+	// Restart watcher to apply filtering to existing files
+	if h.watcherMgr != nil {
+		h.watcherMgr.Restart(h.watcherMgr.LogDir())
+	}
+
+	cfg := appconfig.Get()
+	c.JSON(http.StatusOK, statusResponse{
+		LogDir:          cfg.LogDir,
+		MinDate:         cfg.MinDate,
 		EventsProcessed: metrics.EventsProcessed.Load(),
 		SessionsOpened:  metrics.SessionsOpened.Load(),
 		WSClients:       metrics.WSClients.Load(),
@@ -274,11 +315,13 @@ func (h *handler) setLogDir(c *gin.Context) {
 	}
 	if err := appconfig.SetLogDir(body.LogDir); err != nil {
 		// Non-fatal: log it but still apply the change in-memory.
-		_ = err
+		logger.Error("persist logDir failed", "err", err)
 	}
 	h.watcherMgr.Restart(body.LogDir)
+	cfg := appconfig.Get()
 	c.JSON(http.StatusOK, statusResponse{
 		LogDir:          body.LogDir,
+		MinDate:         cfg.MinDate,
 		EventsProcessed: metrics.EventsProcessed.Load(),
 		SessionsOpened:  metrics.SessionsOpened.Load(),
 		WSClients:       metrics.WSClients.Load(),

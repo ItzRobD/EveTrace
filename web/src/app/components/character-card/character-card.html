@@ -231,7 +231,7 @@
               @if (state().combatFeed.length === 0) {
                 <div class="empty-feed">No combat events</div>
               } @else {
-                <div class="combat-tab-split">
+                <div class="feed-split">
                   <div class="feed-scroll">
                     @for (e of state().combatFeed; track $index) {
                       <div class="feed-entry" [class.miss-entry]="e.miss">
@@ -274,21 +274,26 @@
               @if (state().miningFeed.length === 0) {
                 <div class="empty-feed">No mining events</div>
               } @else {
-                <div class="feed-scroll">
-                  @for (e of state().miningFeed; track $index) {
-                    <div class="feed-entry" [class.residue-entry]="e.residue" [class.critical-entry]="e.critical">
-                      <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
-                      @if (e.residue) {
-                        <span class="tag-residue tag-exceptional"><i class="pi pi-cloud"></i> RESIDUE</span>
-                      } @else if (e.critical) {
-                        <p-tag value="CRITICAL" severity="success" icon="pi pi-exclamation-triangle" styleClass="tag-exceptional" />
-                      } @else {
-                        <p-tag value="MINE" severity="warn" icon="pi pi-circle-fill" />
-                      }
-                      <span class="feed-main">{{ e.oreType }}</span>
-                      <span class="feed-value muted">{{ e.amount | number }} units</span>
-                    </div>
-                  }
+                <div class="feed-split">
+                  <div class="feed-scroll">
+                    @for (e of state().miningFeed; track $index) {
+                      <div class="feed-entry" [class.residue-entry]="e.residue" [class.critical-entry]="e.critical">
+                        <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
+                        @if (e.residue) {
+                          <span class="tag-residue tag-exceptional"><i class="pi pi-cloud"></i> RESIDUE</span>
+                        } @else if (e.critical) {
+                          <p-tag value="CRITICAL" severity="success" icon="pi pi-exclamation-triangle" styleClass="tag-exceptional" />
+                        } @else {
+                          <p-tag value="MINE" severity="warn" icon="pi pi-circle-fill" />
+                        }
+                        <span class="feed-main">{{ e.oreType }}</span>
+                        <span class="feed-value muted">{{ e.amount | number }} units</span>
+                      </div>
+                    }
+                  </div>
+                  <div class="totals-sidebar">
+                    <ng-container *ngTemplateOutlet="oreTableTemplate"></ng-container>
+                  </div>
                 </div>
               }
             </p-tabpanel>
@@ -367,6 +372,47 @@
             </tr>
           }
         </tbody>
+        <tfoot>
+          <tr class="totals-row">
+            <td class="col-name">Total</td>
+            <td class="col-num" [class.val-kill]="entityTotals().kills > 0">{{ entityTotals().kills || '—' }}</td>
+            <td class="col-num" [class.val-out]="entityTotals().dmgOut > 0">{{ entityTotals().dmgOut > 0 ? (entityTotals().dmgOut | number) : '—' }}</td>
+            <td class="col-num" [class.val-in]="entityTotals().dmgIn > 0">{{ entityTotals().dmgIn > 0 ? (entityTotals().dmgIn | number) : '—' }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </ng-template>
+
+  <ng-template #oreTableTemplate>
+    <div class="entity-scroll">
+      <table class="entity-table">
+        <thead>
+          <tr>
+            <th class="col-name">Ore</th>
+            <th class="col-num">Cycles</th>
+            <th class="col-num">Units</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of oreRows(); track row.oreType) {
+            <tr [class.residue-ore-row]="row.oreType === 'Residue'">
+              <td class="col-name">{{ row.oreType }}</td>
+              <td class="col-num">{{ row.cycles }}</td>
+              <td class="col-num"
+                [class.val-mining]="row.oreType !== 'Residue'"
+                [class.val-residue]="row.oreType === 'Residue'"
+              >{{ row.amount | number }}</td>
+            </tr>
+          }
+        </tbody>
+        <tfoot>
+          <tr class="totals-row">
+            <td class="col-name">Total</td>
+            <td class="col-num">{{ oreTotals().cycles }}</td>
+            <td class="col-num val-mining">{{ oreTotals().amount | number }}</td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   </ng-template>

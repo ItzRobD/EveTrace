@@ -46,12 +46,13 @@ type Session struct {
 type Watcher struct {
 	sessions  chan Session
 	logEvents chan core.LogEvent
+	minDate   time.Time
 }
 
 // New starts a Watcher on dir. offsetFn is called for each discovered file to
 // determine where the tailer should resume reading; pass nil to always start
 // from the beginning (equivalent to a first-run or forced replay).
-func New(ctx context.Context, dir string, offsetFn OffsetFn) (*Watcher, error) {
+func New(ctx context.Context, dir string, offsetFn OffsetFn, minDate time.Time) (*Watcher, error) {
 	fw, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -60,10 +61,12 @@ func New(ctx context.Context, dir string, offsetFn OffsetFn) (*Watcher, error) {
 		fw.Close()
 		return nil, err
 	}
+	// A zero minDate means "no filter": StartedAt.Before(zero) is always false.
 
 	w := &Watcher{
 		sessions:  make(chan Session, 16),
 		logEvents: make(chan core.LogEvent, 64),
+		minDate:   minDate,
 	}
 	go w.run(ctx, dir, offsetFn, fw)
 	return w, nil
@@ -154,6 +157,11 @@ func (w *Watcher) addFile(ctx context.Context, path string, offsetFn OffsetFn, w
 			Message: fmt.Sprintf("log file %s contains two session headers (characters logged in at the same second); file skipped", path),
 			At:      time.Now(),
 		})
+		return
+	}
+
+	if header.StartedAt.Before(w.minDate) {
+		// Silently skip logs before the minimum date
 		return
 	}
 

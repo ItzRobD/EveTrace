@@ -152,7 +152,14 @@ func runPrint(ctx context.Context, logDir string, fromStart bool, buf *repo.Even
 		}
 	}
 
-	w, err := watcher.New(ctx, logDir, offsetFn)
+	var minDate time.Time
+	if cfg := appconfig.Get(); cfg.MinDate != "" {
+		if parsed, err := time.Parse(time.RFC3339, cfg.MinDate); err == nil {
+			minDate = parsed
+		}
+	}
+
+	w, err := watcher.New(ctx, logDir, offsetFn, minDate)
 	if err != nil {
 		logger.Error("watcher init failed", "err", err)
 		return

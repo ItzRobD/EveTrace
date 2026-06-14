@@ -39,6 +39,12 @@ export interface EntityStat {
   dmgIn: number;
 }
 
+export interface OreStat {
+  oreType: string;
+  cycles: number;
+  amount: number;
+}
+
 export interface BountyEntry {
   timestamp: string;
   isk: number;
@@ -82,6 +88,7 @@ export interface CharacterLiveState {
   capMarkers: number[];
   criticalMarkers: number[];
   entityStats: Record<string, EntityStat>;
+  oreStats: Record<string, OreStat>;
   capAlert: boolean;
   capAlertModule: string | null;
 }
@@ -103,6 +110,7 @@ export const EMPTY_STATE: Omit<CharacterLiveState, 'characterName' | 'sessionKey
   capMarkers: [],
   criticalMarkers: [],
   entityStats: {},
+  oreStats: {},
   capAlert: false,
   capAlertModule: null,
 };
@@ -202,7 +210,10 @@ export function buildChartData(
   const critSet = new Set(criticalMarkers);
 
   if (killSet.size) {
-    datasets.push(markerDataset('Kill', buckets, killSet, '#f59e0b', 'star', 'y'));
+    // Sit kill markers on the Outgoing DPS line (mirrors how criticals sit on the
+    // mining line) rather than pinned to y=0.
+    const outValues = buckets.map(b => Math.round(b.out / dpsScale));
+    datasets.push(markerDataset('Kill', buckets, killSet, '#f59e0b', 'star', 'y', outValues));
   }
   if (capSet.size) {
     datasets.push(markerDataset('Cap Starved', buckets, capSet, '#ef4444', 'crossRot', 'y'));
@@ -323,6 +334,13 @@ export function applyEvent(
     updated.miningFeed = [entry, ...existing.miningFeed.slice(0, MAX_FEED_ENTRIES - 1)];
     updated.totalMined = existing.totalMined + event.Mining.Amount;
 
+    const oreName = event.Mining.OreType;
+    const prevOre = existing.oreStats[oreName] ?? { oreType: oreName, cycles: 0, amount: 0 };
+    updated.oreStats = {
+      ...existing.oreStats,
+      [oreName]: { oreType: oreName, cycles: prevOre.cycles + 1, amount: prevOre.amount + event.Mining.Amount },
+    };
+
     const mBucketTime = Math.floor(eventMs / DPS_BUCKET_MS) * DPS_BUCKET_MS;
     const prevMBucket = existing.dpsBuckets.find(b => b.time === mBucketTime);
     if (prevMBucket) {
@@ -355,6 +373,12 @@ export function applyEvent(
       ...existing.miningFeed.slice(0, MAX_FEED_ENTRIES - 1),
     ];
     updated.totalResidue = existing.totalResidue + event.Mining.Amount;
+
+    const prevResidue = existing.oreStats['Residue'] ?? { oreType: 'Residue', cycles: 0, amount: 0 };
+    updated.oreStats = {
+      ...existing.oreStats,
+      Residue: { oreType: 'Residue', cycles: prevResidue.cycles + 1, amount: prevResidue.amount + event.Mining.Amount },
+    };
 
     const rBucketTime = Math.floor(eventMs / DPS_BUCKET_MS) * DPS_BUCKET_MS;
     const prevRBucket = existing.dpsBuckets.find(b => b.time === rBucketTime);

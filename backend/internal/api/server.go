@@ -42,6 +42,7 @@ func New(db *sql.DB, hub *Hub, addr string, ctx context.Context, watcherMgr Watc
 		apiGrp.GET("/status", h.getStatus)
 		apiGrp.GET("/config/presets", h.getLogDirPresets)
 		apiGrp.POST("/config/logdir", h.setLogDir)
+		apiGrp.POST("/config/mindate", h.setMinDate)
 
 		apiGrp.GET("/characters", h.listCharacters)
 		apiGrp.GET("/characters/:id", h.getCharacter)

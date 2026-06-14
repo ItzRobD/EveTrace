@@ -193,8 +193,8 @@
   }
 }
 
-/* Combat tab split layout */
-.combat-tab-split {
+/* Feed tab split layout — live events left, running totals right (combat + mining) */
+.feed-split {
   display: flex;
   gap: 1.5rem;
 
@@ -212,7 +212,7 @@
 }
 
 @media (max-width: 1100px) {
-  .combat-tab-split {
+  .feed-split {
     flex-direction: column;
     gap: 1rem;
 
@@ -396,4 +396,19 @@
   .val-kill { color: #f59e0b; }
   .val-out  { color: #3b82f6; }
   .val-in   { color: #ef4444; }
+  .val-mining { color: #eab308; }
+  .val-residue { color: #b45309; }
+
+  .residue-ore-row .col-name { color: #b45309; }
+
+  tfoot .totals-row {
+    border-top: 2px solid var(--p-surface-border);
+
+    td {
+      padding-top: 0.35rem;
+      font-weight: 700;
+    }
+
+    .col-name { color: var(--p-text-color); }
+  }
 }

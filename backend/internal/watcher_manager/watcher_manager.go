@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"sync"
+	"time"
 
 	"EveTrace/internal/api"
+	"EveTrace/internal/appconfig"
 	"EveTrace/internal/database/repo"
 	"EveTrace/internal/logger"
 	"EveTrace/internal/metrics"
@@ -94,7 +96,16 @@ func (m *Manager) run(ctx context.Context, logDir string) {
 		}
 	}
 
-	w, err := watcher.New(ctx, logDir, offsetFn)
+	var minDate time.Time
+	cfg := appconfig.Get()
+	if cfg.MinDate != "" {
+		parsed, err := time.Parse(time.RFC3339, cfg.MinDate)
+		if err == nil {
+			minDate = parsed
+		}
+	}
+
+	w, err := watcher.New(ctx, logDir, offsetFn, minDate)
 	if err != nil {
 		logger.Error("watcher init failed", "logdir", logDir, "err", err)
 		return

@@ -9,7 +9,8 @@ import (
 
 // Config holds all user-persisted settings.
 type Config struct {
-	LogDir string `json:"logDir"`
+	LogDir  string `json:"logDir"`
+	MinDate string `json:"minDate"` // ISO8601 or similar
 }
 
 var (
@@ -47,6 +48,15 @@ func Get() Config {
 func SetLogDir(dir string) error {
 	mu.Lock()
 	current.LogDir = dir
+	cfg := current
+	mu.Unlock()
+	return save(cfg)
+}
+
+// SetMinDate updates the minimum log date and persists to disk.
+func SetMinDate(date string) error {
+	mu.Lock()
+	current.MinDate = date
 	cfg := current
 	mu.Unlock()
 	return save(cfg)

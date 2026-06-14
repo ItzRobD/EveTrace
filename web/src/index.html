@@ -1,9 +1,22 @@
 <!doctype html>
-<html lang="en" class="app-dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>Evetrace</title>
     <base href="/" />
+    <!-- Apply the persisted theme before first paint to avoid a flash of the
+         wrong theme. Mirrors ThemeService (key 'evetrace-theme', default dark). -->
+    <script>
+      (function () {
+        try {
+          if (localStorage.getItem('evetrace-theme') !== 'light') {
+            document.documentElement.classList.add('app-dark');
+          }
+        } catch (e) {
+          document.documentElement.classList.add('app-dark');
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />

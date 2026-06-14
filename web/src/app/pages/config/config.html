@@ -54,6 +54,37 @@
   }
 </section>
 
+<!-- Start Date -->
+<section class="config-section">
+  <h3>Start Date</h3>
+  <p class="section-hint">Only logs started on or after this date will be parsed and pushed to the database.</p>
+  <div class="mindate-row">
+    <p-datepicker
+      [(ngModel)]="minDateValue"
+      [showIcon]="true"
+      dateFormat="yy-mm-dd"
+      appendTo="body"
+    />
+    <p-button
+      label="Apply"
+      icon="pi pi-check"
+      [loading]="savingMinDate()"
+      (onClick)="saveMinDate()"
+    />
+  </div>
+  @if (saveMinDateError()) {
+    <p class="save-error">{{ saveMinDateError() }}</p>
+  }
+  <div class="presets-row">
+    <span class="presets-label">Quick select:</span>
+    <p-button label="7 Days" severity="secondary" size="small" (onClick)="setQuickMinDate(7)" />
+    <p-button label="14 Days" severity="secondary" size="small" (onClick)="setQuickMinDate(14)" />
+    <p-button label="30 Days" severity="secondary" size="small" (onClick)="setQuickMinDate(30)" />
+    <p-button label="90 Days" severity="secondary" size="small" (onClick)="setQuickMinDate(90)" />
+    <p-button label="All Time" severity="secondary" size="small" (onClick)="setQuickMinDate(null)" />
+  </div>
+</section>
+
 <!-- Metrics -->
 @if (status()) {
   <section class="config-section">
