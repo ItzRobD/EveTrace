@@ -335,7 +335,14 @@
       <table class="entity-table">
         <thead>
           <tr>
-            <th class="col-name">Entity</th>
+            <th class="col-name col-sortable" (click)="sortEntities('name')">
+              Entity
+              <i class="pi"
+                [class.pi-sort-alt]="entitySortCol() !== 'name'"
+                [class.pi-sort-alpha-down]="entitySortCol() === 'name' && entitySortDir() === 1"
+                [class.pi-sort-alpha-up-alt]="entitySortCol() === 'name' && entitySortDir() === -1"
+              ></i>
+            </th>
             <th class="col-num col-sortable" (click)="sortEntities('kills')">
               Kills
               <i class="pi"
@@ -389,9 +396,30 @@
       <table class="entity-table">
         <thead>
           <tr>
-            <th class="col-name">Ore</th>
-            <th class="col-num">Cycles</th>
-            <th class="col-num">Units</th>
+            <th class="col-name col-sortable" (click)="sortOre('oreType')">
+              Ore
+              <i class="pi"
+                [class.pi-sort-alt]="oreSortCol() !== 'oreType'"
+                [class.pi-sort-alpha-down]="oreSortCol() === 'oreType' && oreSortDir() === 1"
+                [class.pi-sort-alpha-up-alt]="oreSortCol() === 'oreType' && oreSortDir() === -1"
+              ></i>
+            </th>
+            <th class="col-num col-sortable" (click)="sortOre('cycles')">
+              Cycles
+              <i class="pi"
+                [class.pi-sort-alt]="oreSortCol() !== 'cycles'"
+                [class.pi-sort-amount-down]="oreSortCol() === 'cycles' && oreSortDir() === -1"
+                [class.pi-sort-amount-up-alt]="oreSortCol() === 'cycles' && oreSortDir() === 1"
+              ></i>
+            </th>
+            <th class="col-num col-sortable" (click)="sortOre('amount')">
+              Units
+              <i class="pi"
+                [class.pi-sort-alt]="oreSortCol() !== 'amount'"
+                [class.pi-sort-amount-down]="oreSortCol() === 'amount' && oreSortDir() === -1"
+                [class.pi-sort-amount-up-alt]="oreSortCol() === 'amount' && oreSortDir() === 1"
+              ></i>
+            </th>
           </tr>
         </thead>
         <tbody>

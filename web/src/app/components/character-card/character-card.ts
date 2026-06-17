@@ -142,15 +142,16 @@ export class CharacterCardComponent {
 
   private readonly _entityStats = computed(() => this.state().entityStats);
 
-  protected readonly entitySortCol = signal<'score' | 'kills' | 'dmgOut' | 'dmgIn'>('score');
+  protected readonly entitySortCol = signal<'score' | 'name' | 'kills' | 'dmgOut' | 'dmgIn'>('score');
   protected readonly entitySortDir = signal<1 | -1>(-1);
 
-  protected sortEntities(col: 'kills' | 'dmgOut' | 'dmgIn'): void {
+  protected sortEntities(col: 'name' | 'kills' | 'dmgOut' | 'dmgIn'): void {
     if (this.entitySortCol() === col) {
       this.entitySortDir.update(d => d === 1 ? -1 : 1);
     } else {
       this.entitySortCol.set(col);
-      this.entitySortDir.set(-1);
+      // Names default A→Z, numeric columns default high→low.
+      this.entitySortDir.set(col === 'name' ? 1 : -1);
     }
   }
 
@@ -158,6 +159,7 @@ export class CharacterCardComponent {
     const col = this.entitySortCol();
     const dir = this.entitySortDir();
     return Object.values(this._entityStats()).sort((a, b) => {
+      if (col === 'name') return a.name.localeCompare(b.name) * dir;
       const av = col === 'score' ? a.kills * 100_000 + a.dmgOut + a.dmgIn
                : col === 'kills' ? a.kills
                : col === 'dmgOut' ? a.dmgOut
@@ -185,15 +187,31 @@ export class CharacterCardComponent {
 
   private readonly _oreStats = computed(() => this.state().oreStats);
 
+  protected readonly oreSortCol = signal<'oreType' | 'cycles' | 'amount'>('amount');
+  protected readonly oreSortDir = signal<1 | -1>(-1);
+
+  protected sortOre(col: 'oreType' | 'cycles' | 'amount'): void {
+    if (this.oreSortCol() === col) {
+      this.oreSortDir.update(d => d === 1 ? -1 : 1);
+    } else {
+      this.oreSortCol.set(col);
+      // Ore name defaults A→Z, numeric columns default high→low.
+      this.oreSortDir.set(col === 'oreType' ? 1 : -1);
+    }
+  }
+
   // Session-wide per-ore-type aggregation (not capped by the live feed), sorted by
-  // units descending with residue pinned to the bottom as a loss line.
-  protected readonly oreRows = computed(() =>
-    Object.values(this._oreStats()).sort((a, b) => {
+  // the selected column with residue pinned to the bottom as a loss line.
+  protected readonly oreRows = computed(() => {
+    const col = this.oreSortCol();
+    const dir = this.oreSortDir();
+    return Object.values(this._oreStats()).sort((a, b) => {
       if (a.oreType === 'Residue') return 1;
       if (b.oreType === 'Residue') return -1;
-      return b.amount - a.amount;
-    }),
-  );
+      if (col === 'oreType') return a.oreType.localeCompare(b.oreType) * dir;
+      return (b[col] - a[col]) * dir;
+    });
+  });
 
   // Totals cover mined ore only — residue is a loss, tracked separately.
   protected readonly oreTotals = computed(() =>
