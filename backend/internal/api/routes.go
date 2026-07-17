@@ -33,6 +33,7 @@ type handler struct {
 	db         *sql.DB
 	hub        *Hub
 	ctx        context.Context
+	shutdownFn func() // cancels the root context to trigger graceful shutdown
 	watcherMgr WatcherRestarter
 	flusher    Flusher
 }
@@ -253,6 +254,7 @@ func (h *handler) getLogDirPresets(c *gin.Context) {
 type statusResponse struct {
 	LogDir             string `json:"logDir"`
 	MinDate            string `json:"minDate"`
+	IdleTimeoutSeconds int    `json:"idleTimeoutSeconds"`
 	EventsProcessed    int64  `json:"eventsProcessed"`
 	SessionsOpened     int64  `json:"sessionsOpened"`
 	WSClients          int32  `json:"wsClients"`
@@ -270,6 +272,7 @@ func (h *handler) statusPayload(logDir string) statusResponse {
 	return statusResponse{
 		LogDir:             logDir,
 		MinDate:            appconfig.Get().MinDate,
+		IdleTimeoutSeconds: appconfig.Get().IdleTimeoutSecs(),
 		EventsProcessed:    metrics.EventsProcessed.Load(),
 		SessionsOpened:     metrics.SessionsOpened.Load(),
 		WSClients:          metrics.WSClients.Load(),
@@ -333,6 +336,34 @@ func (h *handler) setMinDate(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, h.statusPayload(appconfig.Get().LogDir))
+}
+
+func (h *handler) setIdleTimeout(c *gin.Context) {
+	var body struct {
+		Seconds int `json:"seconds"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if body.Seconds < 0 {
+		body.Seconds = 0
+	}
+	if err := appconfig.SetIdleTimeoutSeconds(body.Seconds); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist idle timeout"})
+		logger.Error("persist idleTimeout failed", "err", err)
+		return
+	}
+	// Apply to the running hub so the next window-close uses the new value.
+	if h.hub != nil {
+		h.hub.UpdateIdleTimeout(time.Duration(body.Seconds) * time.Second)
+	}
+
+	var logDir string
+	if h.watcherMgr != nil {
+		logDir = h.watcherMgr.LogDir()
+	}
+	c.JSON(http.StatusOK, h.statusPayload(logDir))
 }
 
 func (h *handler) setLogDir(c *gin.Context) {

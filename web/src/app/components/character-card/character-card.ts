@@ -22,8 +22,10 @@ import {
   buildChartData,
   CharacterLiveState,
   DPS_BUCKET_MS,
+  EntityStat,
   ISK_WINDOW_MS,
   MINING_WINDOW_MS,
+  OreStat,
 } from '../../models/character-live-state';
 import { prewarmChartMarkers } from '../../models/chart-markers';
 
@@ -79,6 +81,20 @@ export class CharacterCardComponent {
   protected readonly feedTab = signal('all');
   protected readonly accordionValue = signal<string[]>(['events']);
   protected readonly chartWindowMinutes = signal(2);
+
+  // Per-card baselines snapshotted on Clear — the displayed totals subtract
+  // these from the upstream aggregates, so the live feed and underlying
+  // session-wide history are preserved.
+  protected readonly entityStatsBaseline = signal<Record<string, EntityStat>>({});
+  protected readonly oreStatsBaseline = signal<Record<string, OreStat>>({});
+
+  protected clearEntityTotals(): void {
+    this.entityStatsBaseline.set(structuredClone(this.state().entityStats));
+  }
+
+  protected clearOreTotals(): void {
+    this.oreStatsBaseline.set(structuredClone(this.state().oreStats));
+  }
 
   protected readonly showChart = signal(true);
   protected readonly showCombatStats = signal(true);
@@ -155,10 +171,32 @@ export class CharacterCardComponent {
     }
   }
 
+  // Entity totals with any cleared baseline subtracted; rows where every value
+  // would be zero are dropped so the table doesn't show ghost names.
+  private readonly _displayedEntityStats = computed(() => {
+    const baseline = this.entityStatsBaseline();
+    const current = this._entityStats();
+    const result: Record<string, EntityStat> = {};
+    for (const name in current) {
+      const cur = current[name];
+      const base = baseline[name];
+      if (!base) {
+        result[name] = cur;
+        continue;
+      }
+      const kills = cur.kills - base.kills;
+      const dmgOut = cur.dmgOut - base.dmgOut;
+      const dmgIn = cur.dmgIn - base.dmgIn;
+      if (kills === 0 && dmgOut === 0 && dmgIn === 0) continue;
+      result[name] = { name: cur.name, kills, dmgOut, dmgIn };
+    }
+    return result;
+  });
+
   protected readonly entityRows = computed(() => {
     const col = this.entitySortCol();
     const dir = this.entitySortDir();
-    return Object.values(this._entityStats()).sort((a, b) => {
+    return Object.values(this._displayedEntityStats()).sort((a, b) => {
       if (col === 'name') return a.name.localeCompare(b.name) * dir;
       const av = col === 'score' ? a.kills * 100_000 + a.dmgOut + a.dmgIn
                : col === 'kills' ? a.kills
@@ -200,12 +238,32 @@ export class CharacterCardComponent {
     }
   }
 
+  // Ore totals with any cleared baseline subtracted; zero rows are dropped.
+  private readonly _displayedOreStats = computed(() => {
+    const baseline = this.oreStatsBaseline();
+    const current = this._oreStats();
+    const result: Record<string, OreStat> = {};
+    for (const name in current) {
+      const cur = current[name];
+      const base = baseline[name];
+      if (!base) {
+        result[name] = cur;
+        continue;
+      }
+      const cycles = cur.cycles - base.cycles;
+      const amount = cur.amount - base.amount;
+      if (cycles === 0 && amount === 0) continue;
+      result[name] = { oreType: cur.oreType, cycles, amount };
+    }
+    return result;
+  });
+
   // Session-wide per-ore-type aggregation (not capped by the live feed), sorted by
   // the selected column with residue pinned to the bottom as a loss line.
   protected readonly oreRows = computed(() => {
     const col = this.oreSortCol();
     const dir = this.oreSortDir();
-    return Object.values(this._oreStats()).sort((a, b) => {
+    return Object.values(this._displayedOreStats()).sort((a, b) => {
       if (a.oreType === 'Residue') return 1;
       if (b.oreType === 'Residue') return -1;
       if (col === 'oreType') return a.oreType.localeCompare(b.oreType) * dir;

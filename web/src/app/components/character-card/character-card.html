@@ -140,7 +140,7 @@
   @if (showMiningStats()) {
     <h4 class="stat-group-label">Mining</h4>
     <div class="stats-row">
-      <span class="stat-indicator mining" title="Mining"><i class="evi evi-asteroid"></i></span>
+      <span class="stat-indicator mining" title="Mining"><i class="evi evi-gem"></i></span>
       <div class="mini-stat">
         <span class="mini-label">Mining / min</span>
         <span class="mini-value">{{ miningRateFor() | number }}</span>
@@ -167,7 +167,8 @@
   <!-- Event Feed Accordion -->
   @if (showEventsTable()) {
     <p-accordion
-      [(value)]="accordionValue"
+      [value]="accordionValue()"
+      (valueChange)="accordionValue.set($any($event) ?? [])"
       [multiple]="true"
       styleClass="event-accordion"
     >
@@ -177,7 +178,7 @@
         <p-tabs
           [value]="feedTab()"
           (valueChange)="feedTab.set($event?.toString() ?? 'all')"
-          styleClass="feed-tabs"
+          class="feed-tabs"
         >
           <p-tablist>
             <p-tab value="all">All</p-tab>
@@ -206,11 +207,11 @@
                         }
                         @case ('mining') {
                           @if (e.residue) {
-                            <span class="tag-residue"><i class="pi pi-cloud"></i> RESIDUE</span>
+                            <span class="tag-residue" pTooltip="Residue" tooltipPosition="top"><i class="pi pi-cloud"></i> RESIDUE</span>
                           } @else if (e.critical) {
                             <p-tag value="CRITICAL" severity="success" icon="pi pi-sparkles" />
                           } @else {
-                            <p-tag value="MINE" severity="warn" icon="evi evi-asteroid" />
+                            <p-tag value="MINE" severity="warn" icon="evi evi-gem" />
                           }
                           <span class="feed-main">{{ e.oreType }}</span>
                           <span class="feed-value muted">{{ e.amount! | number }} units</span>
@@ -243,6 +244,18 @@
                     }
                   </div>
                   <div class="totals-sidebar">
+                    <p-button
+                      class="totals-clear"
+                      icon="pi pi-trash"
+                      size="small"
+                      [text]="true"
+                      [rounded]="true"
+                      severity="secondary"
+                      [disabled]="entityRows().length === 0"
+                      pTooltip="Clear Totals"
+                      tooltipPosition="left"
+                      (onClick)="clearEntityTotals()"
+                    />
                     <ng-container *ngTemplateOutlet="entityTableTemplate"></ng-container>
                   </div>
                 </div>
@@ -280,7 +293,8 @@
                       <div class="feed-entry" [class.residue-entry]="e.residue" [class.critical-entry]="e.critical">
                         <span class="feed-time mono">{{ e.timestamp | date: 'HH:mm:ss' : 'UTC' }}</span>
                         @if (e.residue) {
-                          <span class="tag-residue"><i class="pi pi-cloud"></i> RESIDUE</span>
+                          <span class="tag-residue" pTooltip="Residue" tooltipPosition="top"><i
+                            class="pi pi-cloud"></i> RESIDUE</span>
                         } @else if (e.critical) {
                           <p-tag value="CRITICAL" severity="success" icon="pi pi-exclamation-triangle" />
                         } @else {
@@ -292,6 +306,18 @@
                     }
                   </div>
                   <div class="totals-sidebar">
+                    <p-button
+                      class="totals-clear"
+                      icon="pi pi-trash"
+                      size="small"
+                      [text]="true"
+                      [rounded]="true"
+                      severity="secondary"
+                      [disabled]="oreRows().length === 0"
+                      pTooltip="Reset ore totals (feed and session history preserved)"
+                      tooltipPosition="left"
+                      (onClick)="clearOreTotals()"
+                    />
                     <ng-container *ngTemplateOutlet="oreTableTemplate"></ng-container>
                   </div>
                 </div>

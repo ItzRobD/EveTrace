@@ -3,9 +3,12 @@ package api
 import (
 	"encoding/json"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/gorilla/websocket"
 
+	"EveTrace/internal/logger"
 	"EveTrace/internal/metrics"
 	"EveTrace/pkg/core"
 )
@@ -29,6 +32,15 @@ type Hub struct {
 
 	register   chan *Client
 	unregister chan *Client
+
+	// Idle auto-shutdown: when the last client disconnects, shutdownFn is called
+	// after the idle timeout unless a client reconnects first. Disabled when the
+	// timeout is 0. idleTimeoutNs is atomic so the config API can change it at
+	// runtime; shutdownFn is set once at startup; idleTimer is only touched from
+	// the Run goroutine.
+	idleTimeoutNs atomic.Int64
+	shutdownFn    func()
+	idleTimer     *time.Timer
 }
 
 // NewHub creates an idle Hub. Call Run to start processing.
@@ -39,6 +51,21 @@ func NewHub() *Hub {
 		register:   make(chan *Client, 16),
 		unregister: make(chan *Client, 16),
 	}
+}
+
+// SetIdleShutdown enables auto-shutdown: once every WebSocket client has
+// disconnected (main dashboard plus any popout windows), shutdown is invoked
+// after timeout. A reconnect within the window cancels it. Call before Run.
+// A zero timeout leaves the server running until stopped explicitly.
+func (h *Hub) SetIdleShutdown(timeout time.Duration, shutdown func()) {
+	h.idleTimeoutNs.Store(int64(timeout))
+	h.shutdownFn = shutdown
+}
+
+// UpdateIdleTimeout changes the idle-shutdown grace period at runtime (from the
+// config UI). Takes effect on the next window close; a zero timeout disables it.
+func (h *Hub) UpdateIdleTimeout(timeout time.Duration) {
+	h.idleTimeoutNs.Store(int64(timeout))
 }
 
 // Run processes register/unregister/broadcast events until the done channel
@@ -53,6 +80,11 @@ func (h *Hub) Run(done <-chan struct{}) {
 			h.clients[c] = true
 			h.mu.Unlock()
 			metrics.WSClients.Add(1)
+			// A dashboard (re)connected — cancel any pending idle shutdown.
+			if h.idleTimer != nil {
+				h.idleTimer.Stop()
+				h.idleTimer = nil
+			}
 		case c := <-h.unregister:
 			h.mu.Lock()
 			if _, ok := h.clients[c]; ok {
@@ -60,7 +92,13 @@ func (h *Hub) Run(done <-chan struct{}) {
 				close(c.send)
 				metrics.WSClients.Add(-1)
 			}
+			remaining := len(h.clients)
 			h.mu.Unlock()
+			// Last window closed — arm the idle-shutdown grace timer.
+			to := time.Duration(h.idleTimeoutNs.Load())
+			if remaining == 0 && to > 0 && h.shutdownFn != nil {
+				h.armIdleShutdown(to)
+			}
 		case msg := <-h.broadcast:
 			h.mu.RLock()
 			for c := range h.clients {
@@ -73,6 +111,25 @@ func (h *Hub) Run(done <-chan struct{}) {
 			h.mu.RUnlock()
 		}
 	}
+}
+
+// armIdleShutdown starts (or restarts) the grace timer that shuts EveTrace down
+// once no dashboard windows remain. Called only from the Run goroutine, so
+// idleTimer needs no extra locking. The timer callback re-checks the client
+// count under lock to avoid racing a reconnect that fired just as it elapsed.
+func (h *Hub) armIdleShutdown(timeout time.Duration) {
+	if h.idleTimer != nil {
+		h.idleTimer.Stop()
+	}
+	h.idleTimer = time.AfterFunc(timeout, func() {
+		h.mu.RLock()
+		n := len(h.clients)
+		h.mu.RUnlock()
+		if n == 0 {
+			logger.Info("no dashboard connected — shutting down", "grace", timeout.String())
+			h.shutdownFn()
+		}
+	})
 }
 
 // Send encodes a live core.Event as JSON and queues it for broadcast.

@@ -11,6 +11,10 @@
     <span class="app-brand">EveTrace</span>
     <span class="spacer"></span>
     <app-flush-indicator />
+    <p-tag
+      [value]="connectionStatus()"
+      [severity]="statusSeverity(connectionStatus())"
+    />
     <p-button
       [icon]="themeIcon()"
       [text]="true"
@@ -21,9 +25,15 @@
       tooltipPosition="bottom"
       (onClick)="toggleTheme()"
     />
-    <p-tag
-      [value]="connectionStatus()"
-      [severity]="statusSeverity(connectionStatus())"
+    <p-button
+      icon="pi pi-power-off"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      severity="danger"
+      pTooltip="Quit EveTrace"
+      tooltipPosition="bottom"
+      (onClick)="confirmQuit()"
     />
   </header>
 
@@ -107,3 +117,13 @@
     </div>
   </div>
 </p-dialog>
+
+<p-confirmdialog />
+
+@if (shuttingDown()) {
+  <div class="shutdown-overlay">
+    <i class="pi pi-power-off shutdown-icon"></i>
+    <h2>EveTrace has shut down</h2>
+    <p>Your data has been saved. You can safely close this window.</p>
+  </div>
+}

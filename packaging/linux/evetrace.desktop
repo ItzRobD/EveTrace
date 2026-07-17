@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=EveTrace
+GenericName=Eve Online Monitor
+Comment=Real-time performance monitor for Eve Online multiboxers
+Exec=evetrace
+Icon=evetrace
+Categories=Utility;Game;
+Terminal=false
+StartupNotify=false
+Keywords=eve;online;mining;combat;dps;multibox;

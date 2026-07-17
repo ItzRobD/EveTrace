@@ -18,6 +18,7 @@ interface ApiResponse<T> {
 export interface StatusResponse {
   logDir: string;
   minDate: string;
+  idleTimeoutSeconds: number;
   eventsProcessed: number;
   sessionsOpened: number;
   wsClients: number;
@@ -97,6 +98,11 @@ export class ApiService {
     );
   }
 
+  /** Gracefully shut down the EveTrace backend. Buffered events are saved first. */
+  shutdown(): Observable<{ status: string }> {
+    return this.http.post<{ status: string }>(`${this.baseURL}/shutdown`, {});
+  }
+
   getLogDirPresets(): Observable<{ label: string; path: string }[]> {
     return this.http.get<{ presets: { label: string; path: string }[] }>(
       `${this.baseURL}/config/presets`,
@@ -108,6 +114,11 @@ export class ApiService {
       `${this.baseURL}/config/logdir`,
       { logDir },
     );
+  }
+
+  /** Set the auto-shutdown grace period (seconds; 0 = keep running in background). */
+  setIdleTimeout(seconds: number): Observable<StatusResponse> {
+    return this.http.post<StatusResponse>(`${this.baseURL}/config/idle-timeout`, { seconds });
   }
 
   setMinDate(minDate: string): Observable<StatusResponse> {

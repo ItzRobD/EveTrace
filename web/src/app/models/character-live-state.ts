@@ -214,7 +214,7 @@ export function buildChartData(
     // Sit kill markers on the Outgoing DPS line (mirrors how criticals sit on the
     // mining line) rather than pinned to y=0.
     const outValues = buckets.map(b => Math.round(b.out / dpsScale));
-    datasets.push(markerDataset('Kill', buckets, killSet, '#f59e0b', chartMarker('kill'), 'y', outValues));
+    datasets.push(markerDataset('Kill', buckets, killSet, '#ff5a2c', chartMarker('kill'), 'y', outValues));
   }
   if (capSet.size) {
     datasets.push(markerDataset('Cap Starved', buckets, capSet, '#ef4444', chartMarker('cap'), 'y'));

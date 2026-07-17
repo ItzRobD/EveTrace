@@ -60,7 +60,8 @@
   <p class="section-hint">Only logs started on or after this date will be parsed and pushed to the database.</p>
   <div class="mindate-row">
     <p-datepicker
-      [(ngModel)]="minDateValue"
+      [ngModel]="minDateValue()"
+      (ngModelChange)="minDateValue.set($event)"
       [showIcon]="true"
       dateFormat="yy-mm-dd"
       appendTo="body"
@@ -82,6 +83,44 @@
     <p-button label="30 Days" severity="secondary" size="small" (onClick)="setQuickMinDate(30)" />
     <p-button label="90 Days" severity="secondary" size="small" (onClick)="setQuickMinDate(90)" />
     <p-button label="All Time" severity="secondary" size="small" (onClick)="setQuickMinDate(null)" />
+  </div>
+</section>
+
+<!-- Auto-shutdown -->
+<section class="config-section">
+  <h3>Auto-Shutdown</h3>
+  <p class="section-hint">
+    How long EveTrace keeps running after the last dashboard window (and any popouts) is closed.
+    A page refresh reconnects within this window and won't shut it down. Set to 0 to keep running
+    in the background until you click Quit.
+  </p>
+  <div class="mindate-row">
+    <input
+      pInputText
+      type="number"
+      min="0"
+      class="logdir-input"
+      [ngModel]="idleTimeoutValue()"
+      (ngModelChange)="idleTimeoutValue.set($event)"
+    />
+    <span class="presets-label">seconds</span>
+    <p-button
+      label="Apply"
+      icon="pi pi-check"
+      [loading]="savingIdleTimeout()"
+      (onClick)="saveIdleTimeout()"
+    />
+  </div>
+  @if (saveIdleTimeoutError()) {
+    <p class="save-error">{{ saveIdleTimeoutError() }}</p>
+  }
+  <div class="presets-row">
+    <span class="presets-label">Quick select:</span>
+    <p-button label="Off" severity="secondary" size="small" (onClick)="setQuickIdleTimeout(0)" />
+    <p-button label="15s" severity="secondary" size="small" (onClick)="setQuickIdleTimeout(15)" />
+    <p-button label="30s" severity="secondary" size="small" (onClick)="setQuickIdleTimeout(30)" />
+    <p-button label="1 min" severity="secondary" size="small" (onClick)="setQuickIdleTimeout(60)" />
+    <p-button label="5 min" severity="secondary" size="small" (onClick)="setQuickIdleTimeout(300)" />
   </div>
 </section>
 

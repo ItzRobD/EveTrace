@@ -22,7 +22,12 @@ import (
 	"EveTrace/pkg/watcher"
 )
 
+// version is set at build time via -ldflags "-X main.version=...".
+// Defaults to "dev" for plain `go build`/`go run`.
+var version = "dev"
+
 func main() {
+	showVersion := flag.Bool("version", false, "print the EveTrace version and exit")
 	printMode := flag.Bool("print", false, "print parsed events to stdout (debug mode; skips HTTP server)")
 	fromStart := flag.Bool("from-start", false, "read existing log content from the beginning (replay mode)")
 	logDir := flag.String("logdir", "", "path to Eve Online Gamelogs directory (overrides saved config)")
@@ -31,7 +36,13 @@ func main() {
 	cfgFile := flag.String("config", "", "path to config file (default: OS user config dir)")
 	addr := flag.String("addr", ":27182", "address for the HTTP/WebSocket server")
 	flushInterval := flag.Duration("flush-interval", 2*time.Minute, "how often to flush buffered events to the database")
+	idleTimeoutFlag := flag.Duration("idle-timeout", -1, "override the saved idle-shutdown timeout (0 = keep running in the background); default -1 uses the value configured in the UI")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("EveTrace %s\n", version)
+		return
+	}
 
 	if err := logger.Init(*logFile); err != nil {
 		log.Fatalf("logger: %v", err)
@@ -69,6 +80,16 @@ func main() {
 	defer cancel()
 
 	hub := api.NewHub()
+	// Auto-shutdown when every dashboard window (main + any popouts) has closed:
+	// the hub cancels the root context once no WebSocket clients remain for the
+	// grace period. A refresh reconnects within the window and cancels it. The
+	// timeout comes from the saved config (editable in the UI); the -idle-timeout
+	// flag overrides it when set.
+	idleTimeout := appconfig.Get().IdleTimeout()
+	if *idleTimeoutFlag >= 0 {
+		idleTimeout = *idleTimeoutFlag
+	}
+	hub.SetIdleShutdown(idleTimeout, cancel)
 	go hub.Run(ctx.Done())
 
 	buf := repo.NewEventBuffer()
@@ -103,7 +124,7 @@ func main() {
 		}()
 	}
 
-	srv := api.New(database.DB(), hub, *addr, ctx, mgr, buf)
+	srv := api.New(database.DB(), hub, *addr, ctx, cancel, mgr, buf)
 	go func() {
 		if err := srv.Run(ctx); err != nil {
 			logger.Error("http server", "err", err)

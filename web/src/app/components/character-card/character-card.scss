@@ -187,10 +187,8 @@
 }
 
 /* Feed tabs */
-.feed-tabs {
-  :host ::ng-deep .p-tabpanel {
-    padding: 0.5rem 0 0;
-  }
+.feed-tabs ::ng-deep .p-tabpanel {
+  padding: 0.5rem 0 0;
 }
 
 /* Feed tab split layout — live events left, running totals right (combat + mining).
@@ -219,6 +217,26 @@
     min-width: 0;
     border-left: 1px solid var(--p-surface-border);
     padding-left: 1rem;
+    position: relative;
+  }
+}
+
+/* Floats the clear icon over the totals-table header row so it reads as
+   part of the header rather than its own toolbar strip. */
+.totals-clear {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+
+  ::ng-deep .p-button {
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+  }
+
+  ::ng-deep .p-button-icon {
+    font-size: 0.75rem;
   }
 }
 
@@ -244,6 +262,7 @@
   color: var(--p-text-muted-color);
   font-size: 0.82rem;
 }
+
 
 .feed-scroll {
   max-height: 280px;
@@ -275,6 +294,9 @@
   &.critical-entry { color: #22c55e; }
 }
 
+/* Shared sizing token so MINE/CRITICAL/RESIDUE/OUT/IN/JUMP tags all line up. */
+$feed-tag-width: 4.5rem;
+
 /* Uniform base for all p-tags inside feeds */
 .feed-scroll {
   ::ng-deep .p-tag {
@@ -282,6 +304,8 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    width: $feed-tag-width;
+    justify-content: center;
   }
 }
 
@@ -290,17 +314,21 @@
 .tag-residue {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  justify-content: center;
+  gap: 0.2rem;
   padding: 0.15rem 0.4rem;
   border-radius: var(--p-border-radius-sm, 4px);
-  font-size: 0.65rem;
+  /* Smaller font so the longer "RESIDUE" label fits the shared tag width. */
+  font-size: 0.55rem;
   font-weight: 600;
   background: #b45309;
   color: #fff;
   white-space: nowrap;
   flex-shrink: 0;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
+  width: $feed-tag-width;
+  box-sizing: border-box;
 }
 
 .feed-time {

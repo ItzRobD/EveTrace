@@ -43,8 +43,26 @@ Thumbs.db
 
 # EveTrace runtime artifacts
 /backend/EveTrace
+/backend/cmd/EveTrace/EveTrace
 /backend/evetrace.db
 /backend/evetrace.log
+
+# Icon design sources / autosaves (keep exported PNGs, drop working files)
+*.kra
+/icons/*.zip
+
+# Dev scratch / debug artifacts (kept locally, not published)
+/live-errors.txt
+/steam-crash
+/steam-crash-2
+/*.jpeg
+/*.jpg
+/evetrace-initial-plan.md
+/hosted-server-plan.md
+/missing.md
+/user-stories.md
+/windows-debug.md
+/.junie/
 
 ### Go template
 # If you prefer the allow list template instead of the deny list, see community template:

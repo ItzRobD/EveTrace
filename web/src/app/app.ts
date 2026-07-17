@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnDestroy, OnInit } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map, Subscription, filter } from 'rxjs';
@@ -8,8 +8,11 @@ import { Button } from 'primeng/button';
 import { Tag } from 'primeng/tag';
 import { Tooltip } from 'primeng/tooltip';
 import { Dialog } from 'primeng/dialog';
+import { ConfirmDialog } from 'primeng/confirmdialog';
+import { ConfirmationService } from 'primeng/api';
 import { EventStreamService, ConnectionStatus } from './services/event-stream.service';
 import { ThemeService } from './services/theme.service';
+import { ApiService } from './services/api.service';
 import { FlushIndicatorComponent } from './components/flush-indicator/flush-indicator';
 
 interface NavItem {
@@ -22,7 +25,8 @@ const MOBILE_BREAKPOINT = '(max-width: 768px)';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Drawer, Button, Tag, Tooltip, Dialog, FlushIndicatorComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Drawer, Button, Tag, Tooltip, Dialog, ConfirmDialog, FlushIndicatorComponent],
+  providers: [ConfirmationService],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -30,6 +34,8 @@ export class App implements OnInit, OnDestroy {
   private readonly eventStream = inject(EventStreamService);
   private readonly theme = inject(ThemeService);
   private readonly breakpoints = inject(BreakpointObserver);
+  private readonly api = inject(ApiService);
+  private readonly confirm = inject(ConfirmationService);
 
   protected readonly themeMode = this.theme.mode;
   protected readonly themeIcon = computed(() =>
@@ -65,6 +71,9 @@ export class App implements OnInit, OnDestroy {
   protected noLogDirVisible = false;
   protected noLogDirMessage = '';
 
+  /** Set once the user confirms Quit — swaps the app for a "stopped" overlay. */
+  protected readonly shuttingDown = signal(false);
+
   protected readonly navItems: NavItem[] = [
     { label: 'Live', icon: 'pi pi-gauge', route: '/live' },
     { label: 'Replay', icon: 'pi pi-history', route: '/replay' },
@@ -89,6 +98,23 @@ export class App implements OnInit, OnDestroy {
       reconnecting: 'warn',
     };
     return map[status];
+  }
+
+  protected confirmQuit(): void {
+    this.confirm.confirm({
+      message: 'Shut down EveTrace? Any buffered events will be saved first.',
+      header: 'Quit EveTrace',
+      icon: 'pi pi-power-off',
+      acceptLabel: 'Shut down',
+      rejectLabel: 'Cancel',
+      accept: () => {
+        // Show the stopped overlay immediately so the WebSocket dropping doesn't
+        // flash "reconnecting". The request only ever returns 202; the server
+        // then exits, so we don't wait on a response body to switch views.
+        this.shuttingDown.set(true);
+        this.api.shutdown().subscribe({ error: () => {} });
+      },
+    });
   }
 
   protected goToConfig(): void {

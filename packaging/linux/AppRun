@@ -1,0 +1,5 @@
+#!/bin/sh
+# AppImage entrypoint: resolve our own directory and exec the bundled binary,
+# passing along any command-line arguments (e.g. --logdir, --version).
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/evetrace" "$@"

@@ -33,10 +33,13 @@ export class ConfigComponent implements OnInit, OnDestroy {
   protected readonly status = signal<StatusResponse | null>(null);
   protected readonly logDirInput = signal('');
   protected readonly minDateValue = signal<Date | null>(null);
+  protected readonly idleTimeoutValue = signal<number>(30);
   protected readonly saving = signal(false);
   protected readonly savingMinDate = signal(false);
+  protected readonly savingIdleTimeout = signal(false);
   protected readonly saveError = signal('');
   protected readonly saveMinDateError = signal('');
+  protected readonly saveIdleTimeoutError = signal('');
   protected readonly flushingBuffer = signal(false);
   protected readonly flushBufferMsg = signal('');
   protected readonly presets = signal<{ label: string; path: string }[]>([]);
@@ -77,6 +80,9 @@ export class ConfigComponent implements OnInit, OnDestroy {
               d.setHours(0, 0, 0, 0);
               this.minDateValue.set(d);
             }
+          }
+          if (!this.savingIdleTimeout()) {
+            this.idleTimeoutValue.set(s.idleTimeoutSeconds);
           }
         },
       });
@@ -134,6 +140,30 @@ export class ConfigComponent implements OnInit, OnDestroy {
       error: () => {
         this.saveMinDateError.set('Failed to update start date.');
         this.savingMinDate.set(false);
+      },
+    });
+  }
+
+  protected setQuickIdleTimeout(seconds: number): void {
+    this.idleTimeoutValue.set(seconds);
+  }
+
+  protected saveIdleTimeout(): void {
+    let seconds = Math.round(this.idleTimeoutValue());
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      seconds = 0;
+    }
+    this.savingIdleTimeout.set(true);
+    this.saveIdleTimeoutError.set('');
+    this.api.setIdleTimeout(seconds).subscribe({
+      next: s => {
+        this.status.set(s);
+        this.idleTimeoutValue.set(s.idleTimeoutSeconds);
+        this.savingIdleTimeout.set(false);
+      },
+      error: () => {
+        this.saveIdleTimeoutError.set('Failed to update auto-shutdown timeout.');
+        this.savingIdleTimeout.set(false);
       },
     });
   }
